@@ -943,6 +943,11 @@ export interface AsyncExpectation {
   /** Waits for an accessible name. */
   toHaveAccessibleName(expected: TextMatch, options?: TextMatcherOptions): Promise<void>;
   /**
+   * Waits for the role, compared as a string: a `switch` is not a
+   * `checkbox`. `img` is read as `image`, as `getByRole` reads it.
+   */
+  toHaveRole(role: Role | RoleAlias, options?: { timeout?: number }): Promise<void>;
+  /**
    * Waits for the one match to look like its stored screenshot, `name` or
    * one named after the test. A missing one is written and the matcher fails;
    * `--update-snapshots` rewrites one that differs.
