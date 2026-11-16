@@ -362,14 +362,15 @@ typed; prefer it when the app already has a schema for the response.
 `toHaveText` compares the whole normalized text, `toContainText` a substring
 or RegExp, `toHaveValue` a form control's value as is, whitespace included
 (it fails on a node with none); on a password field all three are
-`POLICY_DENIED`, never a comparison against `''`. `toHaveRole('switch')`
-compares the role the tree shows, no hierarchy. List forms:
+`POLICY_DENIED`, never a comparison against `''`. List forms:
 `toHaveText(['Alpha', /^Beta/])` needs exactly two matches with those texts
 in order; `toContainText(['Alpha', 'Beta'])` needs each entry in a distinct
 match, in order, extra matches allowed. `toHaveAttribute(name)` checks
 presence, `toHaveAttribute(name, value)` the value; `toBeAttached` waits for
 a match, hidden or not; `toHaveClass` compares the whole normalized class
-list or tests a RegExp. A failed matcher is `ASSERTION_FAILED`, exit code 1.
+list or tests a RegExp. `toHaveRole('switch')` compares the role the tree
+shows as a string, so a `switch` is not a `checkbox`. A failed matcher is
+`ASSERTION_FAILED`, exit code 1.
 
 Playwright's `{ checked: false }`, `{ enabled: false }`, `{ visible: false }`,
 and `{ attached: false }` flip their matchers, and `{ ignoreCase: true }`
