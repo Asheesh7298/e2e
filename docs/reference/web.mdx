@@ -546,16 +546,21 @@ Waits for the current URL to match. It reads the URL at 0, 20, and 50 ms, then
 every 100 ms from the start, the same poll as `expect(browser).toHaveURL`.
 
 ```ts
+await browser.waitForURL('**/checkout');
 await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
 ```
 
 - A relative string resolves against the base URL and matches exactly after
   normalization.
+- A string with a `*` or a `{` is a glob, read as Playwright reads a URL glob:
+  `*` matches within one path segment, `**` across `/`, `{a,b}` matches either,
+  and `\` escapes the next character. `?` is literal, so a query string reads as
+  written. A glob resolves against the base URL unless it starts with `*`.
 - A `RegExp` tests the full URL.
 
 | Throws | When |
 | --- | --- |
-| `INVALID_ARGUMENT` | A pattern that is not a string or `RegExp` (a predicate function, say), or an option other than `timeout`, such as Playwright's `waitUntil`. |
+| `INVALID_ARGUMENT` | A pattern that is not a string or `RegExp` (a predicate function, say), a glob that nests a `{` or leaves one unmatched, or an option other than `timeout`, such as Playwright's `waitUntil`. |
 | `ASSERTION_FAILED` | The URL did not match before the timeout. |
 
 #### `locator`

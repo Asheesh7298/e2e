@@ -1584,6 +1584,7 @@ export function urlMatches(
 
 ```ts
 urlMatches('https://shop.test/cart', '/cart', 'https://shop.test/'); // true
+urlMatches('https://shop.test/orders/7', '/orders/*', 'https://shop.test/'); // true
 ```
 
 `ignoreCase` はロケーターマッチャーと同じように動きます。

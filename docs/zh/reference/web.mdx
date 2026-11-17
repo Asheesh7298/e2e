@@ -434,6 +434,7 @@ const title = await browser.title();
 等待当前 URL 匹配。它在开始后的 0、20 和 50 毫秒读取 URL，此后从开始时间起每 100 毫秒读取一次，与 `expect(browser).toHaveURL` 的轮询方式相同。
 
 ```ts
+await browser.waitForURL('**/checkout');
 await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
 ```
 

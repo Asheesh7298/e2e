@@ -434,6 +434,7 @@ const title = await browser.title();
 現在の URL が一致するまで待ちます。開始から 0、20、50 ms、その後は 100 ms ごとに URL を読みます。`expect(browser).toHaveURL` と同じポーリングです。
 
 ```ts
+await browser.waitForURL('**/checkout');
 await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
 ```
 

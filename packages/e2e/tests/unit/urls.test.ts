@@ -201,6 +201,51 @@ describe('urlMatches', () => {
     expect(urlMatches('http://localhost:3000/Billing', /billing$/i, base.href, false)).toBe(false);
   });
 
+  it('reads a string with a * or a { as a glob, resolved against the base URL', () => {
+    expect(urlMatches('http://localhost:3000/checkout', '**/checkout', base.href)).toBe(true);
+    expect(urlMatches('https://shop.example/checkout', '**/checkout', base.href)).toBe(true);
+    expect(urlMatches('http://localhost:3000/orders/42', '/orders/*', base.href)).toBe(true);
+    expect(urlMatches('http://other.test/orders/42', '/orders/*', base.href)).toBe(false);
+    expect(urlMatches('http://localhost:3000/a/b', 'a/*', base.href)).toBe(true);
+    expect(urlMatches('https://shop.example.com/a', 'https://*.example.com/**', base.href)).toBe(true);
+    expect(urlMatches('https://example.com/a', 'https://*.example.com/**', base.href)).toBe(false);
+  });
+
+  it('keeps * in one segment, lets ** cross /, and reads {a,b} as either', () => {
+    expect(urlMatches('http://localhost:3000/orders/42/items', '/orders/*', base.href)).toBe(false);
+    expect(urlMatches('http://localhost:3000/orders/42/items', '/orders/**', base.href)).toBe(true);
+    expect(urlMatches('http://localhost:3000/a/b', '/a/**/b', base.href)).toBe(true);
+    expect(urlMatches('http://localhost:3000/a/x/y/b', '/a/**/b', base.href)).toBe(true);
+    expect(urlMatches('http://localhost:3000/cart', '/{cart,checkout}', base.href)).toBe(true);
+    expect(urlMatches('http://localhost:3000/home', '/{cart,checkout}', base.href)).toBe(false);
+  });
+
+  it('reads ? in a glob as the literal start of a query, as Playwright does', () => {
+    expect(urlMatches('http://localhost:3000/search?q=shoes', '**/search?q=*', base.href)).toBe(true);
+    expect(urlMatches('http://localhost:3000/searchXq=shoes', '**/search?q=*', base.href)).toBe(false);
+    expect(urlMatches('http://localhost:3000/search?q=a', '**/search?q=?', base.href)).toBe(false);
+  });
+
+  it('keeps a string with no * or { an exact match, query included', () => {
+    expect(urlMatches('http://localhost:3000/search?q=shoes', '/search?q=shoes', base.href)).toBe(true);
+    expect(urlMatches('http://localhost:3000/search?q=shoes', '/search?q=s', base.href)).toBe(false);
+  });
+
+  it('reads an escaped * as itself, and folds a glob with ignoreCase', () => {
+    expect(urlMatches('http://localhost:3000/a*b', '/a\\*b', base.href)).toBe(true);
+    expect(urlMatches('http://localhost:3000/axb', '/a\\*b', base.href)).toBe(false);
+    expect(urlMatches('http://localhost:3000/Checkout', '**/checkout', base.href)).toBe(false);
+    expect(urlMatches('http://localhost:3000/Checkout', '**/checkout', base.href, true)).toBe(true);
+  });
+
+  it('refuses a nested or unbalanced { in a glob', () => {
+    for (const glob of ['**/{a,{b}}', '**/{a', '**/a}']) {
+      expect(() => urlMatches('http://localhost:3000/a', glob, base.href), glob).toThrow(
+        expect.objectContaining({ code: 'INVALID_ARGUMENT' }),
+      );
+    }
+  });
+
   it('rejects a predicate instead of matching every URL', () => {
     const predicate = ((url: URL) => url.pathname === '/other') as unknown as RegExp;
     expect(() => urlMatches('http://localhost:3000/items', predicate, base.href)).toThrow(

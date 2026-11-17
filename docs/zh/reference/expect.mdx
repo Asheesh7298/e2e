@@ -260,6 +260,7 @@ await expect(screen).toHaveScreenshot('feed.png', { mask: [screen.getByTestId('t
 
 ```ts
 await expect(browser).toHaveURL('/dashboard');
+await expect(browser).toHaveURL('**/checkout');
 await expect(browser).toHaveURL(/\/orders\/\d+$/);
 ```
 

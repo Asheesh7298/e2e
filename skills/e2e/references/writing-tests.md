@@ -347,7 +347,7 @@ config fails the run with exit code 1. The default is `false`.
 
 ```ts
 await expect(screen.getByRole('dialog')).not.toBeVisible({ timeout: 10_000 });
-await expect(browser).toHaveURL('/dashboard');   // relative to the base URL, or a RegExp
+await expect(browser).toHaveURL('/dashboard');   // relative to the base URL; a glob like '**/dashboard'; or a RegExp
 expect(order).toMatchObject({ id: expect.any(Number), lines: [{ sku: 'a' }] });
 expect.soft(await screen.getByTestId('tax').textContent()).toBe('$8.00');  // kept, body runs on
 const users = expect(await response.json()).toMatchSchema(z.array(User)); // any Standard Schema; typed output

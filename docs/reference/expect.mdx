@@ -307,11 +307,14 @@ Waits for the current URL to match.
 
 ```ts
 await expect(browser).toHaveURL('/dashboard');
+await expect(browser).toHaveURL('**/checkout');
 await expect(browser).toHaveURL(/\/orders\/\d+$/);
 ```
 
 - A relative string resolves against the base URL and matches exactly after
   normalization.
+- A string with a `*` or a `{` is a glob, as
+  [`browser.waitForURL`](/reference/web#waitforurl) reads it.
 - A `RegExp` tests the full URL.
 - Anything else, such as a predicate function, is `INVALID_ARGUMENT`.
 - It takes Playwright's `ignoreCase`, as the locator matchers do

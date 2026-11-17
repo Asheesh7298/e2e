@@ -146,7 +146,7 @@ run only in a browser, so a test that uses it declares
 | --- | --- |
 | `page.goto(path)` | `app.open(path)`; `browser.goto(url, { waitUntil, timeout })` for the options |
 | `page.goBack()`, `goForward()`, `reload()`, `url()`, `title()`, `setViewportSize()` | `browser.back()`, `forward()`, `reload()`, `url()`, `title()`, `setViewport()` |
-| `page.waitForURL(url)` | `browser.waitForURL(url)` with a `RegExp` or an exact URL, not a glob |
+| `page.waitForURL(url)` | `browser.waitForURL(url)` with a glob, a `RegExp`, or an exact URL |
 | `page.screenshot()` | `app.screenshot(label)`, the viewport, attached to the report |
 | A fresh `context` for each test | the same for each attempt; `app.restart()` recreates it, `app.clearState()` also clears storage |
 
@@ -269,7 +269,7 @@ purpose. Use the workaround, or keep the test in Playwright.
 | Playwright | Use today |
 | --- | --- |
 | `devices['iPhone 15']`, `isMobile`, `hasTouch`, `deviceScaleFactor` | `web({ viewport, userAgent })`; a mobile target for real touch |
-| `waitForURL(glob)`, `waitForFunction()` | A `RegExp`; `expect.poll` over `browser.evaluate` |
+| `waitForFunction()` | `expect.poll` over `browser.evaluate` |
 | `waitForResponse(predicate)`, `waitForRequest()`, `page.on('request')`, `response.ok()` | `browser.waitForResponse(pattern)`, then check the response in the test, `status` for `ok()`. For requests, a `browser.route` handler that records `route.request`, then calls `route.fallback()` |
 | `route.fulfill({ response })`, `route.abort(code)`, `route.fetch(options)`, `request.postDataJSON()` | `status`, `headers`, and `body` from `route.fetch()`; `JSON.parse(route.request.postData)` |
 | `page.addLocatorHandler()` | Dismiss the overlay in `beforeEach`, or set its consent cookie with `browser.setCookies` |
