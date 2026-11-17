@@ -129,9 +129,18 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     'tablist', 'tabpanel', 'term', 'textbox', 'time', 'timer', 'toolbar', 'tooltip',
     'tree', 'treegrid', 'treeitem',
   ];
+  /**
+   * An attribute whose value is an ARIA token (`role`, or a state such as
+   * `aria-checked`), lowercased: ARIA tokens are ASCII case-insensitive, and
+   * Chrome's accessibility tree reads `aria-checked="True"` as checked and
+   * `role="Button"` as a button. Null when the attribute is absent. Every
+   * token read goes through here, so none of them compares by letter case.
+   */
+  const ariaToken = (el: Element, name: string): string | null => el.getAttribute(name)?.toLowerCase() ?? null;
+
   /** ARIA uses the first recognized token, then native semantics if none is recognized. */
   const explicitRole = memoized((el: Element): string | null =>
-    (el.getAttribute('role') ?? '').split(/[ \t\n\f\r]+/).find((role) => ARIA_ROLES.indexOf(role) !== -1) ?? null);
+    (ariaToken(el, 'role') ?? '').split(/[ \t\n\f\r]+/).find((role) => ARIA_ROLES.indexOf(role) !== -1) ?? null);
 
   /**
    * True when an element carries a name of its own (HTML-AAM: `aria-label`,
@@ -500,7 +509,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
 
   /** True for a subtree the name computation drops: aria-hidden, or hidden by style as innerText leaves it out. */
   const isNameHidden = (el: Element, style: CSSStyleDeclaration | undefined): boolean =>
-    (el.getAttribute('aria-hidden') ?? '').toLowerCase() === 'true' ||
+    ariaToken(el, 'aria-hidden') === 'true' ||
     (style !== undefined && (style.display === 'none' || style.visibility === 'hidden'));
 
   /** `alt` of an element HTML-AAM names by it: an `<img>` or an `<input type="image">`. */
@@ -608,7 +617,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
         const listbox = role === 'combobox' ? ariaOwnedOf(el).find((owned) => implicitRole(owned) === 'listbox') : el;
         selected = listbox === undefined
           ? []
-          : ariaOwnedOf(listbox).filter((owned) => owned.getAttribute('aria-selected') === 'true' && implicitRole(owned) === 'option');
+          : ariaOwnedOf(listbox).filter((owned) => ariaToken(owned, 'aria-selected') === 'true' && implicitRole(owned) === 'option');
       }
       if (selected.length === 0 && el instanceof HTMLInputElement) return el.value;
       return selected.map((option) => contentNameOf(option, styleOf(option), walk)).join(' ');
@@ -1198,7 +1207,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
    * unlisted.
    */
   const hidesSubtree = (el: Element, style: CSSStyleDeclaration | undefined): boolean =>
-    (el.getAttribute('aria-hidden') ?? '').toLowerCase() === 'true' ||
+    ariaToken(el, 'aria-hidden') === 'true' ||
     isInert(el, style) ||
     style === undefined ||
     style.display === 'none' ||
@@ -1390,7 +1399,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     const style = styleOf(el);
     if (style === undefined) return false;
     if (el.children.length > 0) return false;
-    const explicit = (el.getAttribute('role') ?? '').trim();
+    const explicit = (ariaToken(el, 'role') ?? '').trim();
     if (explicit !== '') return false;
     if (directTextOf(el) !== '') return false;
     const rect = el.getBoundingClientRect();
@@ -1538,7 +1547,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
    * disabled ancestor costs one walk, not one per node.
    */
   const ariaDisabledInChain = memoized((el: Element): boolean => {
-    const attribute = (el.getAttribute('aria-disabled') ?? '').toLowerCase();
+    const attribute = ariaToken(el, 'aria-disabled');
     if (attribute === 'true') return true;
     if (attribute === 'false') return false;
     const parent = parentOrHostOf(el);
@@ -1555,7 +1564,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
    */
   const isDisabled = (el: Element): boolean => {
     if (el.matches(':disabled')) return true;
-    if (el.getAttribute('aria-disabled') === 'true') return true;
+    if (ariaToken(el, 'aria-disabled') === 'true') return true;
     const role = implicitRole(el);
     return role !== null && ARIA_DISABLED_ROLES.indexOf(role) !== -1 && ariaDisabledInChain(el);
   };
@@ -1600,18 +1609,18 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     // nothing about what the browser will submit. ARIA fills in only where the
     // element has no native state.
     if (checked === null) {
-      const ariaChecked = el.getAttribute('aria-checked');
+      const ariaChecked = ariaToken(el, 'aria-checked');
       if (ariaChecked !== null) checked = ariaChecked === 'true';
     }
     if (selectedState === null) {
-      const ariaSelected = el.getAttribute('aria-selected');
-      if (ariaSelected !== null) selectedState = ariaSelected.toLowerCase() === 'true';
+      const ariaSelected = ariaToken(el, 'aria-selected');
+      if (ariaSelected !== null) selectedState = ariaSelected === 'true';
     }
 
     const disabled = isDisabled(el);
 
-    const ariaExpanded = el.getAttribute('aria-expanded');
-    const ariaPressed = el.getAttribute('aria-pressed');
+    const ariaExpanded = ariaToken(el, 'aria-expanded');
+    const ariaPressed = ariaToken(el, 'aria-pressed');
     // Matched against the shared selector rather than re-derived from tag and
     // type, so this node's `secure` flag and the screenshot mask agree by
     // construction.

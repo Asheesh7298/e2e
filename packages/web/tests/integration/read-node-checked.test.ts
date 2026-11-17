@@ -144,6 +144,26 @@ describe('checked and selected', () => {
     expect(await page.getByRole('button', { name: 'Pick Chosen', exact: true }).count()).toBe(1);
   });
 
+  it('reads roles and checked, expanded, pressed, and disabled values without case sensitivity, as Chrome does', async () => {
+    await page.setContent(`
+      <div role="checkbox" aria-checked="True" tabindex="0" data-testid="checked">Remember me</div>
+      <div role="Switch" aria-checked="TRUE" tabindex="0" data-testid="switch">Wi-Fi</div>
+      <button aria-expanded="True" data-testid="expanded">Menu</button>
+      <button aria-pressed="TRUE" data-testid="pressed">Bold</button>
+      <button aria-disabled="TrUe" data-testid="disabled">Delete</button>
+      <div role="Button" tabindex="0" data-testid="role">Save</div>
+      <div role="button" data-testid="embedded">Pick <div role="listbox"><div role="option" aria-selected="TRUE">Chosen</div><div role="option" aria-selected="false">Other</div></div></div>
+    `);
+    const nodes = await captureByTestId();
+    expect(nodes.get('checked')?.states?.checked).toBe(true);
+    expect(nodes.get('switch')).toMatchObject({ role: 'switch', states: { checked: true } });
+    expect(nodes.get('expanded')?.states?.expanded).toBe(true);
+    expect(nodes.get('pressed')?.states?.pressed).toBe(true);
+    expect(nodes.get('disabled')?.states?.disabled).toBe(true);
+    expect(nodes.get('role')).toMatchObject({ role: 'button', name: 'Save' });
+    expect(nodes.get('embedded')?.name).toBe('Pick Chosen');
+  });
+
   it('excludes uppercase hidden subtrees from observations and names but reads hidden references whole', async () => {
     await page.setContent(`
       <div aria-hidden="TRUE"><button data-testid="hidden" aria-hidden="false">Hidden action</button></div>
