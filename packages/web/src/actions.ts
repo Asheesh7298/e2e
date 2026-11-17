@@ -19,6 +19,8 @@ import {
   type ActionTarget,
 } from './support.ts';
 import type { ConnectionBudget } from './operation-budget.ts';
+import { readSemanticsFunction } from './in-page/read-semantics.ts';
+import { SECURE_FIELD_SELECTOR } from './read-node.ts';
 
 /** How long a long press holds the button when the action names no duration. */
 const DEFAULT_LONG_PRESS_MS = 500;
@@ -212,16 +214,19 @@ async function clickControl(
   }
 }
 
+/** Reads one node's semantics; the role is all `radioKind` takes from it, so the test id attribute is moot. */
+const NODE_READ = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR, mode: { kind: 'node' } } as const;
+
 /**
  * Which kind of radio a checkable element is, if any. A native radio can be
  * selected but never cleared by a click. An ARIA radio is clicked like any
- * control, as Playwright does: its script decides what a click does.
+ * control, as Playwright does: its script decides what a click does. Its role
+ * is the one the tree reads, the first recognized token in any letter case.
  */
-function radioKind(element: ElementHandle<Element>): Promise<'native' | 'aria' | undefined> {
-  return element.evaluate((node) => {
-    if (node instanceof HTMLInputElement && node.type === 'radio') return 'native';
-    return node.getAttribute('role') === 'radio' ? 'aria' : undefined;
-  });
+async function radioKind(element: ElementHandle<Element>): Promise<'native' | 'aria' | undefined> {
+  if (await element.evaluate((node) => node instanceof HTMLInputElement && node.type === 'radio')) return 'native';
+  const node = await element.evaluate(readSemanticsFunction<typeof NODE_READ.mode>, NODE_READ);
+  return node.role === 'radio' ? 'aria' : undefined;
 }
 
 /**

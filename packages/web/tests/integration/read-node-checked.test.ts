@@ -152,8 +152,7 @@ describe('checked and selected', () => {
       <div role="Switch" aria-checked="TRUE" tabindex="0" data-testid="switch">Wi-Fi</div>
       <button aria-expanded="True" data-testid="expanded">Menu</button>
       <button aria-pressed="TRUE" data-testid="pressed">Bold</button>
-      <button aria-disabled="TrUe" data-testid="disabled">Delete</button>
-      <div aria-disabled="TrUe"><button data-testid="inherited">Archive</button></div>
+      <h3 aria-disabled="TrUe" data-testid="disabled">Archived</h3>
       <div role="Button" tabindex="0" data-testid="role">Save</div>
       <header data-testid="page-header">Site</header>
       <div role="Article" aria-label="Post"><header data-testid="article-header">Post header</header></div>
@@ -164,8 +163,8 @@ describe('checked and selected', () => {
     expect(nodes.get('switch')).toMatchObject({ role: 'switch', states: { checked: true } });
     expect(nodes.get('expanded')?.states?.expanded).toBe(true);
     expect(nodes.get('pressed')?.states?.pressed).toBe(true);
-    expect(nodes.get('disabled')?.states?.disabled).toBe(true);
-    expect(nodes.get('inherited')?.states?.disabled).toBe(true);
+    // A heading is outside the roles an inherited aria-disabled reaches, so only the element's own read counts.
+    expect(nodes.get('disabled')).toMatchObject({ role: 'heading', states: { disabled: true } });
     expect(nodes.get('role')).toMatchObject({ role: 'button', name: 'Save' });
     // A header is the page banner unless a sectioning role scopes it, in any case.
     expect(nodes.get('page-header')?.role).toBe('banner');

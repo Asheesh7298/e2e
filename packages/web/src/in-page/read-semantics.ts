@@ -129,14 +129,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     'tablist', 'tabpanel', 'term', 'textbox', 'time', 'timer', 'toolbar', 'tooltip',
     'tree', 'treegrid', 'treeitem',
   ];
-  /**
-   * An attribute whose value is an ARIA token (`role`, or a state such as
-   * `aria-checked`), lowercased: ARIA tokens are ASCII case-insensitive, and
-   * Chrome's accessibility tree reads `aria-checked="True"` as checked and
-   * `role="Button"` as a button. Null when the attribute is absent. Every
-   * token read goes through here, so none of them compares by letter case;
-   * a CSS selector on one of these attributes carries the `i` flag instead.
-   */
+  /** An ARIA token attribute (`role` or a state) lowercased, as Chrome reads it; null when absent. */
   const ariaToken = (el: Element, name: string): string | null => el.getAttribute(name)?.toLowerCase() ?? null;
 
   /** ARIA uses the first recognized token, then native semantics if none is recognized. */
@@ -1400,7 +1393,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     const style = styleOf(el);
     if (style === undefined) return false;
     if (el.children.length > 0) return false;
-    const explicit = (ariaToken(el, 'role') ?? '').trim();
+    const explicit = (el.getAttribute('role') ?? '').trim();
     if (explicit !== '') return false;
     if (directTextOf(el) !== '') return false;
     const rect = el.getBoundingClientRect();
