@@ -368,9 +368,7 @@ in order; `toContainText(['Alpha', 'Beta'])` needs each entry in a distinct
 match, in order, extra matches allowed. `toHaveAttribute(name)` checks
 presence, `toHaveAttribute(name, value)` the value; `toBeAttached` waits for
 a match, hidden or not; `toHaveClass` compares the whole normalized class
-list or tests a RegExp. `toHaveRole('switch')` compares the role the tree
-shows as a string, so a `switch` is not a `checkbox`. A failed matcher is
-`ASSERTION_FAILED`, exit code 1.
+list or tests a RegExp. A failed matcher is `ASSERTION_FAILED`, exit code 1.
 
 Playwright's `{ checked: false }`, `{ enabled: false }`, `{ visible: false }`,
 and `{ attached: false }` flip their matchers, and `{ ignoreCase: true }`
