@@ -134,7 +134,8 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
    * `aria-checked`), lowercased: ARIA tokens are ASCII case-insensitive, and
    * Chrome's accessibility tree reads `aria-checked="True"` as checked and
    * `role="Button"` as a button. Null when the attribute is absent. Every
-   * token read goes through here, so none of them compares by letter case.
+   * token read goes through here, so none of them compares by letter case;
+   * a CSS selector on one of these attributes carries the `i` flag instead.
    */
   const ariaToken = (el: Element, name: string): string | null => el.getAttribute(name)?.toLowerCase() ?? null;
 
@@ -152,7 +153,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
 
   const SECTIONING_SCOPE = [
     'article', 'aside', 'main', 'nav', 'section',
-    ...['article', 'complementary', 'main', 'navigation', 'region'].map((role) => `[role~="${role}"]`),
+    ...['article', 'complementary', 'main', 'navigation', 'region'].map((role) => `[role~="${role}" i]`),
   ].join(', ');
 
   /**
@@ -1185,7 +1186,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
   const isDrawnByLabel = (el: Element, style: CSSStyleDeclaration | undefined): boolean => {
     if (!(el instanceof HTMLInputElement) || (el.type !== 'checkbox' && el.type !== 'radio')) return false;
     if (style?.visibility !== 'visible' || isSkippedContent(el)) return false;
-    const INTERACTIVE = 'a,button,input,select,textarea,summary,[contenteditable],[role="button"],[role="link"]';
+    const INTERACTIVE = 'a,button,input,select,textarea,summary,[contenteditable],[role="button" i],[role="link" i]';
     return associatedLabels(el).some(
       (label) =>
         styleOf(label)?.display !== 'contents' &&

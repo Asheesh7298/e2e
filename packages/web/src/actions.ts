@@ -115,7 +115,7 @@ function pickStandIn(node: Element, unrendered: string): HTMLLabelElement | null
   const labels = [...(node.labels ?? [])];
   const root = node.getRootNode();
   if (labels.length === 0 || (!(root instanceof Document) && !(root instanceof ShadowRoot))) return null;
-  const INTERACTIVE = 'a,button,input,select,textarea,summary,[contenteditable],[role="button"],[role="link"]';
+  const INTERACTIVE = 'a,button,input,select,textarea,summary,[contenteditable],[role="button" i],[role="link" i]';
   const hasBox = ({ width, height }: DOMRect): boolean => width > 0 && height > 0;
   const centre = ({ left, top, width, height }: DOMRect): [number, number] => [left + width / 2, top + height / 2];
   const topmost = (x: number, y: number): Element | undefined =>

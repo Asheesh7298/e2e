@@ -95,6 +95,8 @@ describe('checked and selected', () => {
       <label><input class="shrunk" type="checkbox" data-testid="link">Accept <a href="#terms">the terms</a></label>
       <label role="button"><input class="shrunk" type="checkbox" data-testid="button-label">Button</label>
       <label role="link"><input class="shrunk" type="checkbox" data-testid="link-label">Link</label>
+      <label role="Button"><input class="shrunk" type="checkbox" data-testid="button-label-upper">Button upper</label>
+      <label role="LINK"><input class="shrunk" type="checkbox" data-testid="link-label-upper">Link upper</label>
       <label contenteditable><input class="shrunk" type="checkbox" data-testid="editable-label">Editable</label>
       <script>
         customElements.define('skip-slot', class extends HTMLElement {
@@ -105,7 +107,7 @@ describe('checked and selected', () => {
       </script>
     `);
     const nodes = await captureByTestId();
-    for (const id of ['invisible', 'text', 'skipped', 'contents', 'link', 'button-label', 'link-label', 'editable-label']) {
+    for (const id of ['invisible', 'text', 'skipped', 'contents', 'link', 'button-label', 'link-label', 'button-label-upper', 'link-label-upper', 'editable-label']) {
       expect(nodes.has(id), id).toBe(false);
     }
   });
@@ -151,7 +153,10 @@ describe('checked and selected', () => {
       <button aria-expanded="True" data-testid="expanded">Menu</button>
       <button aria-pressed="TRUE" data-testid="pressed">Bold</button>
       <button aria-disabled="TrUe" data-testid="disabled">Delete</button>
+      <div aria-disabled="TrUe"><button data-testid="inherited">Archive</button></div>
       <div role="Button" tabindex="0" data-testid="role">Save</div>
+      <header data-testid="page-header">Site</header>
+      <div role="Article" aria-label="Post"><header data-testid="article-header">Post header</header></div>
       <div role="button" data-testid="embedded">Pick <div role="listbox"><div role="option" aria-selected="TRUE">Chosen</div><div role="option" aria-selected="false">Other</div></div></div>
     `);
     const nodes = await captureByTestId();
@@ -160,7 +165,11 @@ describe('checked and selected', () => {
     expect(nodes.get('expanded')?.states?.expanded).toBe(true);
     expect(nodes.get('pressed')?.states?.pressed).toBe(true);
     expect(nodes.get('disabled')?.states?.disabled).toBe(true);
+    expect(nodes.get('inherited')?.states?.disabled).toBe(true);
     expect(nodes.get('role')).toMatchObject({ role: 'button', name: 'Save' });
+    // A header is the page banner unless a sectioning role scopes it, in any case.
+    expect(nodes.get('page-header')?.role).toBe('banner');
+    expect(nodes.get('article-header')?.role).not.toBe('banner');
     expect(nodes.get('embedded')?.name).toBe('Pick Chosen');
   });
 
