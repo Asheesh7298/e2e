@@ -556,7 +556,8 @@ await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
   `*` matches within one path segment, `**` across `/`, `{a,b}` matches either,
   and `\` escapes the next character. `?` is literal, so a query string reads as
   written. A glob resolves against the base URL unless it starts with `*` or a
-  scheme such as `about:`, and its scheme and host match in any letter case.
+  scheme such as `about:`, and a resolved glob's scheme and host match in any
+  letter case.
 - A `RegExp` tests the full URL.
 
 | Throws | When |
