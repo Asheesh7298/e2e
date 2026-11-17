@@ -241,23 +241,30 @@ function isUrlGlob(value: string): boolean {
 /** Characters a glob reads literally that a regexp source must escape. */
 const GLOB_LITERALS_TO_ESCAPE = new Set(['$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']']);
 
+/** Schemes whose URLs Playwright never resolves against a base, so a glob that starts with one stays as written. */
+const UNRESOLVED_GLOB_SCHEMES = ['about:', 'data:', 'chrome:', 'edge:', 'file:'];
+
 /**
  * Resolves a relative URL glob against the base URL, as Playwright's
  * `resolveGlobBase` does: each path segment that holds a glob character is
  * swapped for a placeholder the URL parser leaves alone, the rest resolves,
- * and the segments go back. A glob that starts with `*` matches any origin
- * and stays as written; so does one that does not parse against the base.
+ * and the segments go back, lowercased where they landed in the origin (the
+ * scheme and host match in any case; the path and query keep theirs). A glob
+ * that starts with `*` matches any origin and stays as written; so does one
+ * that starts with an unresolved scheme, or does not parse against the base.
  */
 function resolveUrlGlob(glob: string, baseHref: string): string {
   if (glob.startsWith('*')) return glob;
+  // `?` is literal in a URL glob, so an escaped one is the same character.
+  const unescaped = glob.replaceAll('\\?', '?');
+  if (UNRESOLVED_GLOB_SCHEMES.some((scheme) => unescaped.startsWith(scheme))) return unescaped;
   const originals = new Map<string, string>();
   const hold = (original: string, placeholder: string): string => {
     if (original === '') return '';
     originals.set(placeholder, original);
     return placeholder;
   };
-  // `?` is literal in a URL glob, so an escaped one is the same character.
-  const relative = glob.replaceAll('\\?', '?').split('/').map((segment, index) => {
+  const relative = unescaped.split('/').map((segment, index) => {
     if (segment === '.' || segment === '..' || segment === '') return segment;
     if (index === 0 && segment.endsWith(':')) return isUrlGlob(segment) ? hold(segment, 'http:') : segment;
     if (!/[*?{}\\]/.test(segment)) return segment;
@@ -265,13 +272,17 @@ function resolveUrlGlob(glob: string, baseHref: string): string {
     if (query === -1) return hold(segment, `$_${String(index)}_$`);
     return hold(segment.slice(0, query), `$_${String(index)}_$`) + hold(segment.slice(query), `?$_${String(index)}_$`);
   }).join('/');
-  let resolved: string;
+  let url: URL;
   try {
-    resolved = new URL(relative, baseHref).href;
+    url = new URL(relative, baseHref);
   } catch {
     return glob;
   }
-  for (const [placeholder, original] of originals) resolved = resolved.replace(placeholder, () => original);
+  let resolved = url.href;
+  for (const [placeholder, original] of originals) {
+    const segment = url.origin.includes(placeholder) ? original.toLowerCase() : original;
+    resolved = resolved.replace(placeholder, () => segment);
+  }
   return resolved;
 }
 

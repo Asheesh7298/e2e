@@ -238,6 +238,12 @@ describe('urlMatches', () => {
     expect(urlMatches('http://localhost:3000/Checkout', '**/checkout', base.href, true)).toBe(true);
   });
 
+  it("matches a glob's scheme and host in any case, keeps its path's case, and leaves an about: glob unresolved", () => {
+    expect(urlMatches('https://shop.example.com/a', 'https://*.EXAMPLE.COM/**', base.href)).toBe(true);
+    expect(urlMatches('https://shop.example.com/abc', 'https://*.example.com/A*', base.href)).toBe(false);
+    expect(urlMatches('about:blank', 'about:*', base.href)).toBe(true);
+  });
+
   it('refuses a nested or unbalanced { in a glob', () => {
     for (const glob of ['**/{a,{b}}', '**/{a', '**/a}']) {
       expect(() => urlMatches('http://localhost:3000/a', glob, base.href), glob).toThrow(

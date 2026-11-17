@@ -1587,11 +1587,11 @@ urlMatches('https://shop.test/cart', '/cart', 'https://shop.test/'); // true
 urlMatches('https://shop.test/orders/7', '/orders/*', 'https://shop.test/'); // true
 ```
 
-`ignoreCase` はロケーターマッチャーと同じように動きます。
+`*` または `{` を含む文字列は Playwright の URL グロブの文法で読むグロブで、`*` や `about:` などのスキームで始まる場合を除いて `baseHref` を基準に解決します。グロブの中の `?` はリテラルで、スキームとホストは大文字と小文字を区別しません。`ignoreCase` はロケーターマッチャーと同じように動きます。
 
 | 発生するエラー | 条件 |
 | --- | --- |
-| `INVALID_ARGUMENT` | `toTextPattern` と同様に、`expected` が文字列でも `RegExp` でもない。 |
+| `INVALID_ARGUMENT` | `toTextPattern` と同様に、`expected` が文字列でも `RegExp` でもない。または、`{` が入れ子になっているか閉じていないグロブである。 |
 
 #### サイトのヘルパー
 

@@ -550,12 +550,13 @@ await browser.waitForURL('**/checkout');
 await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
 ```
 
-- A relative string resolves against the base URL and matches exactly after
-  normalization.
+- A relative string with no `*` or `{` resolves against the base URL and
+  matches exactly after normalization.
 - A string with a `*` or a `{` is a glob, read as Playwright reads a URL glob:
   `*` matches within one path segment, `**` across `/`, `{a,b}` matches either,
   and `\` escapes the next character. `?` is literal, so a query string reads as
-  written. A glob resolves against the base URL unless it starts with `*`.
+  written. A glob resolves against the base URL unless it starts with `*` or a
+  scheme such as `about:`, and its scheme and host match in any letter case.
 - A `RegExp` tests the full URL.
 
 | Throws | When |

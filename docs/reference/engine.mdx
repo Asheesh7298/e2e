@@ -1708,7 +1708,8 @@ urlMatches('https://shop.test/orders/7', '/orders/*', 'https://shop.test/'); // 
 ```
 
 A string with a `*` or a `{` is a glob in Playwright's URL grammar, resolved
-against `baseHref` unless it starts with `*`; `?` in it is literal.
+against `baseHref` unless it starts with `*` or a scheme such as `about:`. `?` in
+it is literal, and its scheme and host match in any letter case.
 `ignoreCase` works as on the locator matchers.
 
 | Throws | When |
