@@ -10,6 +10,7 @@
 
 import { currentAttempt } from '@e2e-dev/core/lib/expect/attempt';
 import { CollectionError, TestError } from '@e2e-dev/core/lib/internal/errors';
+import { LATE_VERDICT } from '@e2e-dev/core/lib/internal/expected-failure';
 
 const runtimeSkipBrand: unique symbol = Symbol.for('e2e.runtimeSkip.v1');
 
@@ -72,13 +73,11 @@ export function skipRunningTest(condition: boolean, reason: string | undefined):
 }
 
 /**
- * What a skip thrown from an afterEach hook or a fixture teardown becomes:
- * the attempt's verdict is already reached there, so there is nothing left
- * to skip, as for a late `test.fail()`.
+ * What a skip thrown from an afterEach hook or a fixture teardown becomes
+ * after a test that did not skip: the attempt's verdict is already reached
+ * there, as for a late `test.fail()`. After a skipped test the skip agrees
+ * with the verdict, and the caller records nothing.
  */
 export function lateSkipError(): TestError {
-  return new TestError(
-    'INVALID_ARGUMENT',
-    'test.skip() cannot skip a test from an afterEach hook or a fixture teardown: its verdict is already reached; call it in the test body or a beforeEach hook',
-  );
+  return new TestError('INVALID_ARGUMENT', `test.skip() cannot skip ${LATE_VERDICT}; call it in the test body or a beforeEach hook`);
 }

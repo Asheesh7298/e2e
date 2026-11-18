@@ -178,6 +178,8 @@ type RunPhase = 'beforeAll' | 'beforeEach' | 'body';
 interface Started {
   readonly realm: Realm;
   readonly teardowns: readonly { readonly label: string; readonly run: () => Promise<void> | void }[];
+  /** Whether the test's verdict is a skip, which a later skip in its teardown agrees with. */
+  readonly skipped: boolean;
 }
 
 /** Where a rejection nobody handled goes while test code takes its turn. */
@@ -435,7 +437,7 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
             ...executor.realms.hooksFor(realm, registered, 'afterEach').map((hook) => ({ label: `${hook.kind} hook`, run: () => hook.fn(env.fixtures) })),
             ...extended.teardowns().map((teardown) => ({ label: `fixture "${teardown.name}" teardown`, run: teardown.run })),
           ];
-    return { started: { realm, teardowns }, outcome };
+    return { started: { realm, teardowns, skipped: skipped !== undefined }, outcome };
   };
 
   const run = (): Promise<StandaloneTestOutcome> => {
@@ -478,7 +480,9 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
             try {
               await runHook(hook.label, hook.run, config.cleanupTimeout, () => hookAbort.abort());
             } catch (cause) {
-              errors.push(serialize(isRuntimeSkip(cause) ? lateSkipError() : cause, 'afterEach'));
+              // As in a run's attempt: a skip after a skipped test agrees with it.
+              if (!isRuntimeSkip(cause)) errors.push(serialize(cause, 'afterEach'));
+              else if (!started.skipped) errors.push(serialize(lateSkipError(), 'afterEach'));
             }
           }
           await executor.settleAttempt(env.session, attemptId).catch((cause: unknown) => errors.push(serialize(cause, 'afterEach')));

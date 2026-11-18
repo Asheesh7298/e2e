@@ -258,7 +258,7 @@ test('never registered', async () => {});
   it(
     'refuses test.skip() from an afterEach hook or a fixture teardown with INVALID_ARGUMENT',
     async () => {
-      const file = `import { afterEach, describe, expect, test as base } from 'e2e';
+      const file = `import { afterEach, beforeEach, describe, expect, test as base } from 'e2e';
 
 const test = base.extend<{ resource: number }>({
   resource: async ({}, use) => {
@@ -280,6 +280,16 @@ describe('late', () => {
     expect(1).toBe(2);
   });
 });
+
+describe('skipped first', () => {
+  beforeEach(() => {
+    base.skip(true, 'flag off');
+  });
+  afterEach(() => {
+    base.skip(true, 'flag off');
+  });
+  base('skips in both hooks', async () => {});
+});
 `;
       const { outcome, project } = await runProject({ 'tests/late-skip.e2e.ts': file }, {});
       const late = /test\.skip\(\) cannot skip a test from an afterEach hook or a fixture teardown/;
@@ -292,6 +302,12 @@ describe('late', () => {
       const failed = resultByTitle(outcome, 'fails before an afterEach skip');
       expect(failed.attempts[0]?.error?.code).toBe('ASSERTION_FAILED');
       expect(failed.attempts[0]?.secondaryErrors).toEqual([expect.objectContaining({ code: 'INVALID_ARGUMENT', message: expect.stringMatching(late) })]);
+      // A skip in afterEach after a test that already skipped agrees with its verdict.
+      const skippedTwice = resultByTitle(outcome, 'skips in both hooks');
+      expect(skippedTwice.status).toBe('skipped');
+      expect(skippedTwice.skip?.reason).toBe('flag off');
+      expect(skippedTwice.attempts[0]?.error).toBeUndefined();
+      expect(skippedTwice.attempts[0]?.secondaryErrors ?? []).toEqual([]);
       project.cleanup();
     },
     120_000,
