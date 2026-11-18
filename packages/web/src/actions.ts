@@ -226,8 +226,8 @@ const NODE_READ = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_
 async function radioKind(element: ElementHandle<Element>): Promise<'native' | 'aria' | undefined> {
   const kind = await element.evaluate((node) => {
     if (node instanceof HTMLInputElement && node.type === 'radio') return 'native';
-    // Only a role that names a radio in some letter case needs the reader's verdict.
-    return /radio/i.test(node.getAttribute('role') ?? '') ? 'maybe' : undefined;
+    // Only a role with a radio token, in some letter case, needs the reader's verdict; menuitemradio and radiogroup do not.
+    return /(?:^|[ \t\n\f\r])radio(?:$|[ \t\n\f\r])/i.test(node.getAttribute('role') ?? '') ? 'maybe' : undefined;
   });
   if (kind !== 'maybe') return kind;
   const node = await element.evaluate(readSemanticsFunction<typeof NODE_READ.mode>, NODE_READ);
