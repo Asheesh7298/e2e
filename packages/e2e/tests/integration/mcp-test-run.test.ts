@@ -142,6 +142,17 @@ test('needs the database', { fail: 'the database gap' }, async ({ app }) => {
 });
 `;
 
+const LATE_SKIP = `import { test } from 'e2e';
+
+test.afterEach(() => {
+  test.skip(true, 'too late');
+});
+
+test('skips in its afterEach', async ({ app }) => {
+  await app.open('/');
+});
+`;
+
 const EXPECTED = `import { expect, test } from 'e2e';
 
 test('counter gap', { fail: 'the counter starts at one' }, async ({ app, screen }) => {
@@ -217,6 +228,7 @@ describe('open_session {test}', { timeout: 120_000 }, () => {
         'tests/visual.e2e.ts': VISUAL,
         'tests/expected.e2e.ts': EXPECTED,
         'tests/marked-hooks.e2e.ts': MARKED_HOOKS,
+        'tests/late-skip.e2e.ts': LATE_SKIP,
       });
       const transport = new StdioClientTransport({
         command: process.execPath,
@@ -250,6 +262,14 @@ describe('open_session {test}', { timeout: 120_000 }, () => {
       const closed = await invoke('close_session');
       expect(closed.text).toMatch(/^Session \S+ closed/);
       expect(readFileSync(marker, 'utf8')).toBe('ran');
+    });
+
+    it('refuses test.skip() from an afterEach at close_session with INVALID_ARGUMENT', async () => {
+      const opened = await invoke('open_session', { test: 'tests/late-skip.e2e.ts' });
+      expect(opened.isError, opened.text).toBe(false);
+      const closed = await invoke('close_session');
+      expect(closed.text).toContain('Cleanup (afterEach): INVALID_ARGUMENT: test.skip() cannot skip a test from an afterEach hook or a fixture teardown');
+      expect(closed.text).not.toContain('[object Object]');
     });
 
     it('opens a failing test with its code, line, code frame, and nearest nodes, on the screen it failed on', async () => {

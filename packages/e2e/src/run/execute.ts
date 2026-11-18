@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { TargetSession } from '@e2e-dev/core/lib/engine/surface';
 import type { ResolvedConfig } from '@e2e-dev/core/lib/config/resolve';
 import { classifyError, ConfigurationError, E2EError, serializeError, sanitizeRecordedText, truncateUtf8, TestError, TestTimeoutError, type SerializedError } from '@e2e-dev/core/lib/internal/errors';
-import { isRuntimeSkip, type RuntimeSkip } from '../internal/skip.ts';
+import { isRuntimeSkip, lateSkipError, type RuntimeSkip } from '../internal/skip.ts';
 import { lateExpectedFailureError } from '@e2e-dev/core/lib/internal/expected-failure';
 import { settleExpectedFailure } from './expected-failure.ts';
 import type { ExecutorAttempt } from '@e2e-dev/core/lib/agent/executor';
@@ -948,7 +948,7 @@ export class TargetExecutor extends EngineSessions implements SerialHost {
             hookAbort.abort(),
           );
         } catch (cause) {
-          recordFailure(cause, 'afterEach');
+          recordFailure(isRuntimeSkip(cause) ? lateSkipError() : cause, 'afterEach');
         }
       }
       await this.settleAttempt(session, attemptId).catch((cause: unknown) => recordFailure(cause, 'afterEach'));

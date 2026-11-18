@@ -256,6 +256,48 @@ test('never registered', async () => {});
   );
 
   it(
+    'refuses test.skip() from an afterEach hook or a fixture teardown with INVALID_ARGUMENT',
+    async () => {
+      const file = `import { afterEach, describe, expect, test as base } from 'e2e';
+
+const test = base.extend<{ resource: number }>({
+  resource: async ({}, use) => {
+    await use(1);
+    test.skip(true, 'too late');
+  },
+});
+
+test('skips from a fixture teardown', async ({ resource }) => {
+  expect(resource).toBe(1);
+});
+
+describe('late', () => {
+  afterEach(() => {
+    base.skip('too late');
+  });
+  base('passes before an afterEach skip', async () => {});
+  base('fails before an afterEach skip', async () => {
+    expect(1).toBe(2);
+  });
+});
+`;
+      const { outcome, project } = await runProject({ 'tests/late-skip.e2e.ts': file }, {});
+      const late = /test\.skip\(\) cannot skip a test from an afterEach hook or a fixture teardown/;
+      for (const title of ['skips from a fixture teardown', 'passes before an afterEach skip']) {
+        const result = resultByTitle(outcome, title);
+        expect(result.status).toBe('failed');
+        expect(result.skip).toBeUndefined();
+        expect(result.attempts[0]?.error).toMatchObject({ code: 'INVALID_ARGUMENT', phase: 'afterEach', message: expect.stringMatching(late) });
+      }
+      const failed = resultByTitle(outcome, 'fails before an afterEach skip');
+      expect(failed.attempts[0]?.error?.code).toBe('ASSERTION_FAILED');
+      expect(failed.attempts[0]?.secondaryErrors).toEqual([expect.objectContaining({ code: 'INVALID_ARGUMENT', message: expect.stringMatching(late) })]);
+      project.cleanup();
+    },
+    120_000,
+  );
+
+  it(
     'runs the named file past broken files it did not name, and fails a run that names one or names none',
     async () => {
       const files = {
