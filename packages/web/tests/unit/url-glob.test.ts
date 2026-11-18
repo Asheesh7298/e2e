@@ -60,6 +60,11 @@ describe('waitForURL globs', () => {
     expect(waits('/files/my%20file*', 'http://localhost:3000/files/my%20file.pdf')).toBe(true);
   });
 
+  it('restores each glob segment to its own place when the glob also holds text like a placeholder', () => {
+    expect(waits('/$_2_$/x*', 'http://localhost:3000/$_2_$/xyz')).toBe(true);
+    expect(waits('/$_2_$/x*', 'http://localhost:3000/xyz/$_2_$')).toBe(false);
+  });
+
   it('compares a string with no * or { exactly, as toHaveURL does', () => {
     expect(waits('/search?q=shoes', 'http://localhost:3000/search?q=shoes')).toBe(true);
     expect(waits('/search?q=s', 'http://localhost:3000/search?q=shoes')).toBe(false);

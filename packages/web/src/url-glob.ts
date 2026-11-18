@@ -50,6 +50,9 @@ function serialized(url: string): string {
  */
 function resolveUrlGlob(glob: string, baseHref: string): string {
   if (glob.startsWith('*') || UNRESOLVED_GLOB_SCHEMES.some((scheme) => glob.startsWith(scheme))) return glob;
+  // A placeholder prefix neither the glob nor the base holds, so restoring a segment never lands on the user's own text.
+  let tag = '$_';
+  while (glob.includes(tag) || baseHref.includes(tag)) tag += '_';
   const originals = new Map<string, string>();
   const hold = (original: string, placeholder: string): string => {
     if (original === '') return '';
@@ -62,8 +65,8 @@ function resolveUrlGlob(glob: string, baseHref: string): string {
     if (!/[*?{}\\]/.test(segment)) return segment;
     // The query is held on its own, so a later `..` stays in the query instead of eating this segment.
     const query = segment.indexOf('?');
-    if (query === -1) return hold(segment, `$_${String(index)}_$`);
-    return hold(segment.slice(0, query), `$_${String(index)}_$`) + hold(segment.slice(query), `?$_${String(index)}_$`);
+    if (query === -1) return hold(segment, `${tag}${String(index)}_$`);
+    return hold(segment.slice(0, query), `${tag}${String(index)}_$`) + hold(segment.slice(query), `?${tag}${String(index)}_$`);
   }).join('/');
   let url: URL;
   try {
