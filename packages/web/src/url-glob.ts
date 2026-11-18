@@ -1,31 +1,62 @@
 /**
- * URL globs for `browser.waitForURL`, in Playwright's grammar. Playwright's
- * `waitForURL` reads a string as a glob and its `toHaveURL` never does, so
- * the glob lives here, beside the route grammar, and `urlMatches` in core
- * stays the exact comparison `expect(browser).toHaveURL` makes.
+ * The web engine's one URL pattern grammar, Playwright's. `browser.waitForURL`,
+ * `route`, `unroute`, and `waitForResponse` read a string with a `*` or a `{`
+ * as a URL glob, a RegExp against the full URL, and any other string as the
+ * exact URL `expect(browser).toHaveURL` compares (`urlMatches` in core):
+ * Playwright's `toHaveURL` never reads a glob, so only these read one.
  */
 
-import { TestError, urlMatches } from '@e2e-dev/core/engine';
-import { escapeRegexpChar } from './route-pattern.ts';
+import { TestError, urlMatches, type TextPattern } from '@e2e-dev/core/engine';
 
 /** Schemes whose URLs Playwright never resolves against a base, so a glob that starts with one stays as written. */
 const UNRESOLVED_GLOB_SCHEMES = ['about:', 'data:', 'chrome:', 'edge:', 'file:'];
 
-/** Whether `waitForURL` reads a string as a glob: it holds a `*` or a `{`, escaped or not. */
-export function isUrlGlob(value: string): boolean {
-  return value.includes('*') || value.includes('{');
+/** A URL pattern compiled once against the base URL. */
+export interface UrlPattern {
+  /** Whether a URL matches the pattern. */
+  readonly matches: (url: string) => boolean;
+  /** The pattern as a failed wait prints it: a glob as written, any other string resolved against the base, a RegExp as written. */
+  readonly label: string;
 }
 
 /**
- * What `browser.waitForURL` waits for, compiled once: a string with a `*` or
- * a `{` as a URL glob, and anything else as `expect(browser).toHaveURL`
- * compares it. A glob that nests a `{` or leaves one unmatched is
- * `INVALID_ARGUMENT` before the first read.
+ * Compiles a `waitForURL`, `route`, `unroute`, or `waitForResponse` pattern:
+ * a string with a `*` or a `{` as a URL glob, and anything else as
+ * `expect(browser).toHaveURL` compares it. A glob that nests a `{` or leaves
+ * one unmatched is `INVALID_ARGUMENT` here, before anything is matched.
  */
-export function urlWaitMatcher(expected: string | RegExp, baseHref: string): (current: string) => boolean {
-  if (typeof expected !== 'string' || !isUrlGlob(expected)) return (current) => urlMatches(current, expected, baseHref);
-  const pattern = new RegExp(urlGlobSource(resolveUrlGlob(expected, baseHref)));
-  return (current) => pattern.test(serialized(current));
+export function urlPattern(expected: string | RegExp, baseHref: string): UrlPattern {
+  if (typeof expected === 'string' && isUrlGlob(expected)) {
+    const pattern = new RegExp(urlGlobSource(resolveUrlGlob(expected, baseHref)));
+    return { matches: (url) => pattern.test(serialized(url)), label: expected };
+  }
+  return { matches: (url) => urlMatches(url, expected, baseHref), label: describeExpectedUrl(expected, baseHref) };
+}
+
+/**
+ * The expected URL as `toHaveURL` compares it: a string resolved against the
+ * base, the way `urlMatches` resolves it, so it reads beside the absolute
+ * observed URL. A string that does not parse, and a RegExp, print as written.
+ */
+export function describeExpectedUrl(expected: string | RegExp, baseHref: string): string {
+  if (typeof expected !== 'string') return String(expected);
+  try {
+    return new URL(expected, baseHref).href;
+  } catch {
+    return expected;
+  }
+}
+
+/** Structural equality for route patterns on the wire, which is how `unroute` finds a route. */
+export function urlPatternsEqual(a: TextPattern, b: TextPattern): boolean {
+  if (a.kind === 'string' && b.kind === 'string') return a.value === b.value;
+  if (a.kind === 'regexp' && b.kind === 'regexp') return a.source === b.source && a.flags === b.flags;
+  return false;
+}
+
+/** Whether a string reads as a glob: it holds a `*` or a `{`, escaped or not. */
+function isUrlGlob(value: string): boolean {
+  return value.includes('*') || value.includes('{');
 }
 
 /** The current URL as `urlMatches` compares it: serialized by the URL parser, else as given. */
@@ -37,14 +68,34 @@ function serialized(url: string): string {
   }
 }
 
+/** Escapes one character for literal use inside a regexp source. */
+function escapeRegexpChar(ch: string): string {
+  return /[a-zA-Z0-9_-]/.test(ch) ? ch : `\\${ch}`;
+}
+
+/**
+ * One literal glob character as a regexp source: printable ASCII as itself,
+ * and anything else (non-ASCII text, a space) percent-encoded, as the URL
+ * parser encodes it in the URL the browser reports. A lone surrogate, which
+ * cannot be encoded, stays as written.
+ */
+function literalSource(ch: string): string {
+  if (/^[\x21-\x7e]$/.test(ch)) return escapeRegexpChar(ch);
+  let encoded: string;
+  try {
+    encoded = encodeURIComponent(ch);
+  } catch {
+    return escapeRegexpChar(ch);
+  }
+  return [...encoded].map(escapeRegexpChar).join('');
+}
+
 /**
  * Resolves a relative URL glob against the base URL, as Playwright's
  * `resolveGlobBase` does: each path segment that holds a glob character is
  * swapped for a placeholder the URL parser leaves alone, the rest resolves,
- * and the segments go back. One that landed in the origin goes back
- * lowercased (the scheme and host match in any case); the rest go back
- * percent-encoded the way the parser encodes what it reads, so `/検索?q=*`
- * matches the URL a browser reports. A glob that starts with `*` matches any
+ * and the segments go back, lowercased where they landed in the origin (the
+ * scheme and host match in any case). A glob that starts with `*` matches any
  * origin and stays as written; so does one that starts with an unresolved
  * scheme, or does not parse against the base.
  */
@@ -76,9 +127,7 @@ function resolveUrlGlob(glob: string, baseHref: string): string {
   }
   let resolved = url.href;
   for (const [placeholder, original] of originals) {
-    const segment = url.origin.includes(placeholder)
-      ? original.toLowerCase()
-      : original.replace(/[^\x21-\x7e]/gu, (ch) => encodeURIComponent(ch));
+    const segment = url.origin.includes(placeholder) ? original.toLowerCase() : original;
     resolved = resolved.replace(placeholder, () => segment);
   }
   return resolved;
@@ -89,18 +138,22 @@ function resolveUrlGlob(glob: string, baseHref: string): string {
  * Playwright's grammar: `*` matches within one path segment, `**` across `/`
  * (a `**` segment may also match none), `{a,b}` matches either, and `\`
  * escapes the next character. `?` and everything else is literal, so a query
- * string reads as written. A nested or unbalanced `{` is `INVALID_ARGUMENT`.
+ * string reads as written, and non-ASCII text and spaces match the URL
+ * percent-encoded. A nested or unbalanced `{` is `INVALID_ARGUMENT`.
  */
 function urlGlobSource(glob: string): string {
   const invalid = (problem: string): TestError =>
     new TestError('INVALID_ARGUMENT', `URL glob ${JSON.stringify(glob)} ${problem}`);
+  /** The whole character (code point) at `index`, so an astral one is encoded as one. */
+  const charAt = (index: number): string => String.fromCodePoint(glob.codePointAt(index)!);
   let source = '^';
   let inGroup = false;
   for (let i = 0; i < glob.length; i += 1) {
-    const ch = glob[i]!;
+    const ch = charAt(i);
     if (ch === '\\' && i + 1 < glob.length) {
-      i += 1;
-      source += escapeRegexpChar(glob[i]!);
+      const next = charAt(i + 1);
+      source += literalSource(next);
+      i += next.length;
       continue;
     }
     if (ch === '*') {
@@ -131,8 +184,9 @@ function urlGlobSource(glob: string): string {
     } else if (ch === ',' && inGroup) {
       source += '|';
     } else {
-      source += escapeRegexpChar(ch);
+      source += literalSource(ch);
     }
+    i += ch.length - 1;
   }
   if (inGroup) throw invalid("has an unmatched '{'");
   return `${source}$`;

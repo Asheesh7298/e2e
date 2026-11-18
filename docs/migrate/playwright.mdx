@@ -325,7 +325,6 @@ purpose. Use the workaround, or keep the test in Playwright.
 | `selectOption('pro')` by value | `selectOption({ value: 'pro' })`. A bare string matches the label only |
 | `use.storageState: 'file.json'`, `context.storageState({ path })` | `test.setup` and `{ session }`. [Sessions last one run](#what-differs-on-purpose), so there is no file |
 | `page.waitForTimeout(ms)`, `page.waitForNavigation()` | A locator assertion on the state you wait for; `browser.waitForURL(url)` |
-| `?` as a literal and `{a,b}` in a route glob | A `RegExp`. In a glob, `?` is a wildcard and `{a,b}` is literal |
 | `--only-changed` | `--changed-since <ref>` with a [test filter](/filters) in `filters` |
 | `page.$()`, `$eval()`, `elementHandle()`, non-JSON `evaluate` values, `locator.page()` | Locators, and `browser.evaluate` with JSON in and out, which the report records and redacts. Pass `browser` to a page object |
 | A dialog with no handler, dismissed silently | `browser.onDialog('dismiss')`. An unhandled dialog fails the next step |

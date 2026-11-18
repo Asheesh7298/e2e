@@ -560,7 +560,8 @@ await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
   letter case. Non-ASCII text and spaces in a glob match the URL as the browser
   encodes it.
 - `expect(browser).toHaveURL` reads `*` and `{` as themselves, as Playwright's
-  does, so only the wait reads a glob.
+  does; [`route`](#route), `unroute`, and `waitForResponse` read the same
+  globs as this wait.
 - A `RegExp` tests the full URL.
 
 | Throws | When |
@@ -670,10 +671,11 @@ with the configured headers when its origin gets them, under the action
 timeout, without deciding the route.
 It does not follow redirects, which could take it past the navigation rule.
 
-- The pattern is a string or a `RegExp`, both tested against the full URL. In
-  a string, `*` matches within a path segment, `**` across `/`, `?` any one
-  character, and `\` escapes the next. `unroute` and `waitForResponse` take
-  the same patterns.
+- The pattern is a string or a `RegExp`, read as [`waitForURL`](#waitforurl)
+  reads one: a string with a `*` or a `{` is a glob in Playwright's grammar
+  (`?` literal, `{a,b}` either), any other string is an exact URL, and a
+  relative one resolves against the base URL. `unroute` and `waitForResponse`
+  take the same patterns.
 - A route survives `app.restart()`, `app.clearState()`, and session restore.
 - Routes run newest first.
 - The handler must decide exactly once, with `fulfill`, `continue`,

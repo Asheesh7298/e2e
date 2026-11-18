@@ -310,7 +310,6 @@ export const test = base.extend<{ accountPage: AccountPage }>({
 | 値による `selectOption('pro')` | `selectOption({ value: 'pro' })`。文字列だけならラベルのみと照合 |
 | `use.storageState: 'file.json'`, `context.storageState({ path })` | `test.setup` と `{ session }`。[セッションは 1 回の実行内だけ有効](#what-differs-on-purpose)なので、ファイルはなし |
 | `page.waitForTimeout(ms)`, `page.waitForNavigation()` | 待ちたい状態へのロケーターアサーション。`browser.waitForURL(url)` |
-| ルートの glob 内のリテラル `?` と `{a,b}` | `RegExp`。glob では `?` はワイルドカード、`{a,b}` はリテラル |
 | `--only-changed` | `filters` の[テストフィルター](/filters)と `--changed-since <ref>` |
 | `page.$()`、`$eval()`、`elementHandle()`、JSON 以外の `evaluate` 値、`locator.page()` | ロケーターと、JSON を入出力する `browser.evaluate`。レポートに記録し、シークレットを伏せ字化。ページオブジェクトには `browser` を渡す |
 | ハンドラーなしで黙って閉じられるダイアログ | `browser.onDialog('dismiss')`。未処理のダイアログは次のステップを失敗させる |

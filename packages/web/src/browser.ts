@@ -47,8 +47,7 @@ import { initScriptLabel, testInitScriptSource } from './init-scripts.ts';
 import { MEDIA_KEYS, mediaLabel, mediaProblem, type WebMedia } from './media.ts';
 import { lowercaseNames } from './protected-app.ts';
 import { parseContinue, parseFulfill, requireNoArguments } from './route-options.ts';
-import { routePatternMatches, routePatternsEqual } from './route-pattern.ts';
-import { isUrlGlob, urlWaitMatcher } from './url-glob.ts';
+import { describeExpectedUrl, urlPattern, urlPatternsEqual } from './url-glob.ts';
 import type { PlaywrightSurface } from './surface.ts';
 
 /**
@@ -648,7 +647,8 @@ export function createBrowserFixture(surface: PlaywrightSurface, context: Engine
     },
     route(pattern, handler) {
       const wirePattern = toTextPattern(pattern);
-      const predicate = (url: URL) => routePatternMatches(wirePattern, url.href);
+      const { matches } = urlPattern(pattern, baseHref());
+      const predicate = (url: URL) => matches(url.href);
       // Playwright never surfaces a throwing route handler to the test, so a
       // contract violation (no decision, two decisions) or a failing handler
       // is latched on the surface and fails the next step with its real cause.
@@ -764,18 +764,19 @@ export function createBrowserFixture(surface: PlaywrightSurface, context: Engine
     unroute(pattern) {
       const wirePattern = toTextPattern(pattern);
       return surface.guard(context.operation(), 'unroute', () =>
-        removeRoutes(stored => routePatternsEqual(stored.pattern, wirePattern)));
+        removeRoutes(stored => urlPatternsEqual(stored.pattern, wirePattern)));
     },
     unrouteAll() {
       return surface.guard(context.operation(), 'unrouteAll', () => removeRoutes(() => true));
     },
     waitForResponse(pattern, options) {
-      const wirePattern = toTextPattern(pattern);
+      toTextPattern(pattern);
+      const { matches } = urlPattern(pattern, baseHref());
       const operation = context.operation(stepTimeout(options?.timeout, 'browser.waitForResponse'));
       return surface.guard(operation, 'waitForResponse', async (currentOperation) => {
         const page = await surface.ensurePage();
         const response = await page.waitForResponse(
-          (candidate) => routePatternMatches(wirePattern, candidate.url()),
+          (candidate) => matches(candidate.url()),
           { timeout: currentOperation.timeoutMs },
         );
         // Started now, while the browser still holds the body, and awaited
@@ -960,20 +961,6 @@ interface ExpectationDeps {
   readonly context: EngineFixtureContext;
 }
 
-/**
- * The expected URL as `toHaveURL` compares it: a string resolved against the
- * base, the way `urlMatches` resolves it, so it reads beside the absolute
- * observed URL. A string that does not parse, and a RegExp, print as written.
- */
-function describeExpectedUrl(expected: string | RegExp, baseHref: string): string {
-  if (typeof expected !== 'string') return String(expected);
-  try {
-    return new URL(expected, baseHref).href;
-  } catch {
-    return expected;
-  }
-}
-
 /** One read of a browser matcher poll: whether the condition holds (undefined: not evaluable yet), and what was seen. */
 interface BrowserSample {
   readonly matches: boolean | undefined;
@@ -981,31 +968,25 @@ interface BrowserSample {
 }
 
 /**
- * `expect(browser)` matchers: URL, title, and class polling against the
- * assertion budget. Every read is bounded by the poll's deadline, so a page
- * that stops answering ends the assertion at its own timeout, and the
- * failure reports the last read instead of reading a hung page again.
- */
-/**
  * Polls one browser condition against the assertion budget and fails with the
  * last read when it times out: the loop behind `expect(browser)` and
- * `browser.waitForURL`.
+ * `browser.waitForURL`. `api` names the call to its timeout, and `name`
+ * heads the failure (`expect.not.toHaveURL`, `browser.waitForURL`).
  */
 async function pollBrowser(
   deps: ExpectationDeps,
-  negated: boolean,
-  api: string,
+  call: { readonly api: string; readonly name: string; readonly negated: boolean },
   label: string,
   read: (deadline: Deadline) => Promise<BrowserSample>,
   timeout: number | undefined,
 ): Promise<void> {
-  const deadline = deps.deadlineFor(timeout, api);
+  const deadline = deps.deadlineFor(timeout, call.api);
   // pollCondition calls onTimeout only after a read completed, so a sample is always there.
   let last: BrowserSample | undefined;
   await pollCondition({
     deadline,
     signal: deps.context.signal,
-    negated,
+    negated: call.negated,
     evaluate: async () => {
       last = await read(deadline);
       return last.matches;
@@ -1013,7 +994,7 @@ async function pollBrowser(
     onTimeout: (cause) =>
       new TestError(
         'ASSERTION_FAILED',
-        `expect.${negated ? 'not.' : ''}${api} failed\nexpected: ${negated ? 'not ' : ''}${label}\nobserved: ${last?.observed ?? 'nothing'}`,
+        `${call.name} failed\nexpected: ${call.negated ? 'not ' : ''}${label}\nobserved: ${last?.observed ?? 'nothing'}`,
         cause === undefined ? undefined : { cause },
       ),
   });
@@ -1026,22 +1007,27 @@ async function pollBrowser(
  * so the matcher keeps its exact comparison.
  */
 function waitForUrl(deps: ExpectationDeps, expected: string | RegExp, timeout: number | undefined): Promise<void> {
-  const target = deps.baseHref();
-  const matches = urlWaitMatcher(expected, target);
-  const label = typeof expected === 'string' && isUrlGlob(expected) ? expected : describeExpectedUrl(expected, target);
-  return pollBrowser(deps, false, 'toHaveURL', `URL ${label}`, async (deadline) => {
+  const { matches, label } = urlPattern(expected, deps.baseHref());
+  const call = { api: 'browser.waitForURL', name: 'browser.waitForURL', negated: false };
+  return pollBrowser(deps, call, `URL ${label}`, async (deadline) => {
     const url = await deps.currentUrl(deadline);
     return { matches: matches(url), observed: `URL ${url}` };
   }, timeout);
 }
 
+/**
+ * `expect(browser)` matchers: URL, title, and class polling against the
+ * assertion budget. Every read is bounded by the poll's deadline, so a page
+ * that stops answering ends the assertion at its own timeout, and the
+ * failure reports the last read instead of reading a hung page again.
+ */
 function createBrowserExpectation(deps: ExpectationDeps, negated = false): BrowserExpectation {
   const poll = (
     api: string,
     label: string,
     read: (deadline: Deadline) => Promise<BrowserSample>,
     timeout: number | undefined,
-  ): Promise<void> => pollBrowser(deps, negated, api, label, read, timeout);
+  ): Promise<void> => pollBrowser(deps, { api, name: `expect.${negated ? 'not.' : ''}${api}`, negated }, label, read, timeout);
   const validate = (api: string, options: object | undefined, keys: readonly string[] = ['timeout']): void =>
     rejectUnknownOptions(`expect.${negated ? 'not.' : ''}${api}`, options, keys);
   return {

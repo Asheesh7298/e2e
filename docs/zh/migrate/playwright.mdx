@@ -310,7 +310,6 @@ export const test = base.extend<{ accountPage: AccountPage }>({
 | 按值选择的 `selectOption('pro')` | `selectOption({ value: 'pro' })`。单独的字符串只匹配标签 |
 | `use.storageState: 'file.json'`, `context.storageState({ path })` | `test.setup` 和 `{ session }`。[会话仅持续一次运行](#what-differs-on-purpose)，因此没有文件 |
 | `page.waitForTimeout(ms)`, `page.waitForNavigation()` | 对等待的状态使用定位器断言；`browser.waitForURL(url)` |
-| 路由 glob 中作为字面量的 `?` 和 `{a,b}` | `RegExp`。在 glob 中，`?` 是通配符，`{a,b}` 是字面量 |
 | `--only-changed` | `--changed-since <ref>` 配合 `filters` 中的[测试过滤器](/filters) |
 | `page.$()`、`$eval()`、`elementHandle()`、非 JSON 的 `evaluate` 值、`locator.page()` | 定位器，以及输入输出为 JSON 的 `browser.evaluate`，报告会记录并脱敏。向页面对象传入 `browser` |
 | 没有处理函数时静默关闭的对话框 | `browser.onDialog('dismiss')`。未处理的对话框会使下一步骤失败 |

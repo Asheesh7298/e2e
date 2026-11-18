@@ -765,7 +765,7 @@ describe('web platform integration', () => {
     expect(result.status).toBe('failed');
     expect(result.attempts[0]!.error?.code).toBe('ASSERTION_FAILED');
     expect(result.attempts[0]!.error?.message).toContain(
-      `expected: URL **/checkout\nobserved: URL ${new URL('/classes', app.url).href}`,
+      `browser.waitForURL failed\nexpected: URL **/checkout\nobserved: URL ${new URL('/classes', app.url).href}`,
     );
   });
 
