@@ -48,6 +48,7 @@ import { MEDIA_KEYS, mediaLabel, mediaProblem, type WebMedia } from './media.ts'
 import { lowercaseNames } from './protected-app.ts';
 import { parseContinue, parseFulfill, requireNoArguments } from './route-options.ts';
 import { routePatternMatches, routePatternsEqual } from './route-pattern.ts';
+import { isUrlGlob, urlWaitMatcher } from './url-glob.ts';
 import type { PlaywrightSurface } from './surface.ts';
 
 /**
@@ -585,7 +586,8 @@ export function createBrowserFixture(surface: PlaywrightSurface, context: Engine
   /** The page title, read within the action timeout or, for a matcher poll, within the poll's deadline. */
   const currentTitle = (deadline?: Deadline) =>
     surface.guard(context.operation(deadline?.remaining()), 'title', () => surface.requirePage().title());
-  const expectation = createBrowserExpectation({ currentUrl, currentTitle, baseHref, deadlineFor, context });
+  const expectationDeps: ExpectationDeps = { currentUrl, currentTitle, baseHref, deadlineFor, context };
+  const expectation = createBrowserExpectation(expectationDeps);
 
   const browser: Omit<Browser, keyof Expectable<BrowserExpectation>> = {
     goto(url, options) {
@@ -612,10 +614,9 @@ export function createBrowserFixture(surface: PlaywrightSurface, context: Engine
       })),
     url: () => currentUrl(),
     title: () => currentTitle(),
-    // The same poll as `expect(browser).toHaveURL`, exposed as a wait.
     waitForURL: (url, options) => {
       rejectUnknownOptions('browser.waitForURL', options, ['timeout']);
-      return expectation.toHaveURL(url, options);
+      return waitForUrl(expectationDeps, url, options?.timeout);
     },
     locator: (selector) => context.locator({ kind: 'selector', selector: requireSelector('browser.locator', selector) }),
     frameLocator: (selector) => frameScreen(context, [requireSelector('browser.frameLocator', selector)]),
@@ -962,11 +963,10 @@ interface ExpectationDeps {
 /**
  * The expected URL as `toHaveURL` compares it: a string resolved against the
  * base, the way `urlMatches` resolves it, so it reads beside the absolute
- * observed URL. A glob (a `*` or a `{`, as `urlMatches` reads one), a string
- * that does not parse, and a RegExp print as written.
+ * observed URL. A string that does not parse, and a RegExp, print as written.
  */
 function describeExpectedUrl(expected: string | RegExp, baseHref: string): string {
-  if (typeof expected !== 'string' || expected.includes('*') || expected.includes('{')) return String(expected);
+  if (typeof expected !== 'string') return String(expected);
   try {
     return new URL(expected, baseHref).href;
   } catch {
@@ -986,32 +986,62 @@ interface BrowserSample {
  * that stops answering ends the assertion at its own timeout, and the
  * failure reports the last read instead of reading a hung page again.
  */
+/**
+ * Polls one browser condition against the assertion budget and fails with the
+ * last read when it times out: the loop behind `expect(browser)` and
+ * `browser.waitForURL`.
+ */
+async function pollBrowser(
+  deps: ExpectationDeps,
+  negated: boolean,
+  api: string,
+  label: string,
+  read: (deadline: Deadline) => Promise<BrowserSample>,
+  timeout: number | undefined,
+): Promise<void> {
+  const deadline = deps.deadlineFor(timeout, api);
+  // pollCondition calls onTimeout only after a read completed, so a sample is always there.
+  let last: BrowserSample | undefined;
+  await pollCondition({
+    deadline,
+    signal: deps.context.signal,
+    negated,
+    evaluate: async () => {
+      last = await read(deadline);
+      return last.matches;
+    },
+    onTimeout: (cause) =>
+      new TestError(
+        'ASSERTION_FAILED',
+        `expect.${negated ? 'not.' : ''}${api} failed\nexpected: ${negated ? 'not ' : ''}${label}\nobserved: ${last?.observed ?? 'nothing'}`,
+        cause === undefined ? undefined : { cause },
+      ),
+  });
+}
+
+/**
+ * `browser.waitForURL`: the poll `expect(browser).toHaveURL` runs, except
+ * that a string with a `*` or a `{` is a URL glob (`url-glob.ts`), printed as
+ * written when the wait fails. Playwright's `toHaveURL` never reads a glob,
+ * so the matcher keeps its exact comparison.
+ */
+function waitForUrl(deps: ExpectationDeps, expected: string | RegExp, timeout: number | undefined): Promise<void> {
+  const target = deps.baseHref();
+  const matches = urlWaitMatcher(expected, target);
+  const label = typeof expected === 'string' && isUrlGlob(expected) ? expected : describeExpectedUrl(expected, target);
+  return pollBrowser(deps, false, 'toHaveURL', `URL ${label}`, async (deadline) => {
+    const url = await deps.currentUrl(deadline);
+    return { matches: matches(url), observed: `URL ${url}` };
+  }, timeout);
+}
+
 function createBrowserExpectation(deps: ExpectationDeps, negated = false): BrowserExpectation {
-  const poll = async (
+  const poll = (
     api: string,
     label: string,
     read: (deadline: Deadline) => Promise<BrowserSample>,
     timeout: number | undefined,
-  ): Promise<void> => {
-    const deadline = deps.deadlineFor(timeout, api);
-    // pollCondition calls onTimeout only after a read completed, so a sample is always there.
-    let last: BrowserSample | undefined;
-    await pollCondition({
-      deadline,
-      signal: deps.context.signal,
-      negated,
-      evaluate: async () => {
-        last = await read(deadline);
-        return last.matches;
-      },
-      onTimeout: (cause) =>
-        new TestError(
-          'ASSERTION_FAILED',
-          `expect.${negated ? 'not.' : ''}${api} failed\nexpected: ${negated ? 'not ' : ''}${label}\nobserved: ${last?.observed ?? 'nothing'}`,
-          cause === undefined ? undefined : { cause },
-        ),
-    });
-  };
+  ): Promise<void> => pollBrowser(deps, negated, api, label, read, timeout);
   const validate = (api: string, options: object | undefined, keys: readonly string[] = ['timeout']): void =>
     rejectUnknownOptions(`expect.${negated ? 'not.' : ''}${api}`, options, keys);
   return {

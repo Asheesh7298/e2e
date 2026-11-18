@@ -399,16 +399,15 @@ test('a relative toHaveURL prints the expected URL resolved', async ({ app, brow
   await expect(browser).toHaveURL('/about', { timeout: 300 });
 });
 
-test('URL globs match the way Playwright reads them', async ({ app, browser }) => {
+test('waitForURL reads URL globs, and toHaveURL compares exactly, as in Playwright', async ({ app, browser }) => {
   await app.open('/classes?tab=a');
   await browser.waitForURL('**/classes?tab=a');
   await browser.waitForURL('/class*?tab=*');
-  await expect(browser).toHaveURL('**/{about,classes}?tab=a');
-  await expect(browser).toHaveURL('**/CLASSES?TAB=A', { ignoreCase: true });
-  // \`*\` stays in one segment, and \`?\` is literal, not a wildcard.
-  await expect(browser).not.toHaveURL('/*/classes?tab=a', { timeout: 300 });
-  await expect(browser).not.toHaveURL('**/classes?tab=?', { timeout: 300 });
-  await expect(browser).not.toHaveURL('**/about?tab=a', { timeout: 300 });
+  await browser.waitForURL('**/{about,classes}?tab=a');
+  // toHaveURL reads \`*\` and \`{\` as themselves, so a URL with braces in its query compares exactly.
+  await expect(browser).not.toHaveURL('**/classes?tab=a', { timeout: 300 });
+  await app.open('/classes?filter={"a":1}');
+  await expect(browser).toHaveURL('/classes?filter={"a":1}');
 });
 
 test('a URL glob prints as written', async ({ app, browser }) => {
@@ -516,7 +515,7 @@ describe('web platform integration', () => {
     'an empty class attribute is an empty class list',
     'reads wait for a node that arrives late',
     'toHaveURL ignoreCase folds the comparison',
-    'URL globs match the way Playwright reads them',
+    'waitForURL reads URL globs, and toHaveURL compares exactly, as in Playwright',
     'string and RegExp URL patterns match what they name',
     'toHaveRole compares the role the tree reads',
   ])('passes %s', (title) => {

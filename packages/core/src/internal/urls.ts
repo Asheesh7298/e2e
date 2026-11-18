@@ -1,6 +1,6 @@
 /** URL normalization and origin policy helpers. */
 
-import { ConfigurationError, TestError } from './errors.ts';
+import { ConfigurationError } from './errors.ts';
 import { testPattern } from './regexp.ts';
 import { toTextPattern, withIgnoreCase } from './text.ts';
 
@@ -193,8 +193,6 @@ export function sameSite(url: string | URL, site: string): boolean {
  * Compares a current URL to an expected string/regexp.
  * Relative expected strings resolve against the base URL; string comparison is
  * exact after WHATWG serialization; regexps test the complete serialized URL.
- * A string with a `*` or a `{` is a glob in Playwright's grammar instead (see
- * `urlGlobSource`), resolved against the base URL unless it starts with `*`.
  * Anything else is `INVALID_ARGUMENT`, the `toTextPattern` rule.
  * `ignoreCase` is Playwright's: `true` compares a string case-insensitively
  * and adds the `i` flag to a regexp, `false` removes it.
@@ -208,10 +206,6 @@ export function urlMatches(
   const pattern = withIgnoreCase(toTextPattern(expected), ignoreCase);
   if (pattern.kind === 'regexp') {
     return testPattern(pattern.source, pattern.flags, serializeForComparison(current));
-  }
-  if (isUrlGlob(pattern.value)) {
-    const source = urlGlobSource(resolveUrlGlob(pattern.value, baseHref));
-    return testPattern(source, ignoreCase === true ? 'i' : '', serializeForComparison(current));
   }
   let expectedUrl: URL;
   try {
@@ -231,114 +225,6 @@ function serializeForComparison(url: string): string {
   } catch {
     return url;
   }
-}
-
-/** Whether an expected URL string is a glob: it holds a `*` or a `{`, escaped or not. */
-function isUrlGlob(value: string): boolean {
-  return value.includes('*') || value.includes('{');
-}
-
-/** Characters a glob reads literally that a regexp source must escape. */
-const GLOB_LITERALS_TO_ESCAPE = new Set(['$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']']);
-
-/** Schemes whose URLs Playwright never resolves against a base, so a glob that starts with one stays as written. */
-const UNRESOLVED_GLOB_SCHEMES = ['about:', 'data:', 'chrome:', 'edge:', 'file:'];
-
-/**
- * Resolves a relative URL glob against the base URL, as Playwright's
- * `resolveGlobBase` does: each path segment that holds a glob character is
- * swapped for a placeholder the URL parser leaves alone, the rest resolves,
- * and the segments go back, lowercased where they landed in the origin (the
- * scheme and host match in any case; the path and query keep theirs). A glob
- * that starts with `*` matches any origin and stays as written; so does one
- * that starts with an unresolved scheme, or does not parse against the base.
- */
-function resolveUrlGlob(glob: string, baseHref: string): string {
-  if (glob.startsWith('*')) return glob;
-  // `?` is literal in a URL glob, so an escaped one is the same character.
-  const unescaped = glob.replaceAll('\\?', '?');
-  if (UNRESOLVED_GLOB_SCHEMES.some((scheme) => unescaped.startsWith(scheme))) return unescaped;
-  const originals = new Map<string, string>();
-  const hold = (original: string, placeholder: string): string => {
-    if (original === '') return '';
-    originals.set(placeholder, original);
-    return placeholder;
-  };
-  const relative = unescaped.split('/').map((segment, index) => {
-    if (segment === '.' || segment === '..' || segment === '') return segment;
-    if (index === 0 && segment.endsWith(':')) return isUrlGlob(segment) ? hold(segment, 'http:') : segment;
-    if (!/[*?{}\\]/.test(segment)) return segment;
-    const query = segment.indexOf('?');
-    if (query === -1) return hold(segment, `$_${String(index)}_$`);
-    return hold(segment.slice(0, query), `$_${String(index)}_$`) + hold(segment.slice(query), `?$_${String(index)}_$`);
-  }).join('/');
-  let url: URL;
-  try {
-    url = new URL(relative, baseHref);
-  } catch {
-    return glob;
-  }
-  let resolved = url.href;
-  for (const [placeholder, original] of originals) {
-    const segment = url.origin.includes(placeholder) ? original.toLowerCase() : original;
-    resolved = resolved.replace(placeholder, () => segment);
-  }
-  return resolved;
-}
-
-/**
- * Compiles a URL glob to a regexp source matching the whole URL, in
- * Playwright's grammar: `*` matches within one path segment, `**` across `/`
- * (a `**` segment may also match none), `{a,b}` matches either, and `\`
- * escapes the next character. `?` and everything else is literal, so a query
- * string reads as written. A nested or unbalanced `{` is `INVALID_ARGUMENT`.
- */
-function urlGlobSource(glob: string): string {
-  const invalid = (problem: string): TestError =>
-    new TestError('INVALID_ARGUMENT', `URL glob ${JSON.stringify(glob)} ${problem}`);
-  let source = '^';
-  let inGroup = false;
-  for (let i = 0; i < glob.length; i += 1) {
-    const ch = glob[i]!;
-    if (ch === '\\' && i + 1 < glob.length) {
-      i += 1;
-      const next = glob[i]!;
-      source += GLOB_LITERALS_TO_ESCAPE.has(next) ? `\\${next}` : next;
-      continue;
-    }
-    if (ch === '*') {
-      const before = glob[i - 1];
-      let stars = 1;
-      while (glob[i + 1] === '*') {
-        stars += 1;
-        i += 1;
-      }
-      if (stars === 1) {
-        source += '([^/]*)';
-      } else if (glob[i + 1] === '/') {
-        source += before === '/' ? '((.+/)|)' : '(.*/)';
-        i += 1;
-      } else {
-        source += '(.*)';
-      }
-      continue;
-    }
-    if (ch === '{') {
-      if (inGroup) throw invalid("nests a '{'");
-      inGroup = true;
-      source += '(';
-    } else if (ch === '}') {
-      if (!inGroup) throw invalid("has an unmatched '}'");
-      inGroup = false;
-      source += ')';
-    } else if (ch === ',' && inGroup) {
-      source += '|';
-    } else {
-      source += GLOB_LITERALS_TO_ESCAPE.has(ch) ? `\\${ch}` : ch;
-    }
-  }
-  if (inGroup) throw invalid("has an unmatched '{'");
-  return `${source}$`;
 }
 
 

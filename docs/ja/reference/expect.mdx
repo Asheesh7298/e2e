@@ -268,12 +268,10 @@ await expect(screen).toHaveScreenshot('feed.png', { mask: [screen.getByTestId('t
 
 ```ts
 await expect(browser).toHaveURL('/dashboard');
-await expect(browser).toHaveURL('**/checkout');
 await expect(browser).toHaveURL(/\/orders\/\d+$/);
 ```
 
-- `*` も `{` も含まない相対文字列はベース URL を基準に解決し、正規化後に完全一致で比較します。
-- `*` または `{` を含む文字列は、相対のものも含めてグロブで、[`browser.waitForURL`](/reference/web#waitforurl) と同じように読みます。
+- 相対文字列はベース URL を基準に解決し、正規化後に完全一致で比較します。Playwright と同じく、`*` と `{` はここではリテラルです。グロブは [`browser.waitForURL`](/reference/web#waitforurl) で使います。
 - `RegExp` は URL 全体に適用します。
 - 述語関数など、それ以外は `INVALID_ARGUMENT` です。
 - ロケーターのマッチャーと同じく、Playwright の `ignoreCase` を指定できます（[テキストの照合](#text-matching)）。

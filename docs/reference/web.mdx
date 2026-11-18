@@ -557,7 +557,10 @@ await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
   and `\` escapes the next character. `?` is literal, so a query string reads as
   written. A glob resolves against the base URL unless it starts with `*` or a
   scheme such as `about:`, and a resolved glob's scheme and host match in any
-  letter case.
+  letter case. Non-ASCII text and spaces in a glob match the URL as the browser
+  encodes it.
+- `expect(browser).toHaveURL` reads `*` and `{` as themselves, as Playwright's
+  does, so only the wait reads a glob.
 - A `RegExp` tests the full URL.
 
 | Throws | When |

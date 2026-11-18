@@ -3,7 +3,7 @@
 import type { TextPattern } from '@e2e-dev/core/engine';
 
 /** Escapes one character for literal use inside a regexp source. */
-function escapeRegexpChar(ch: string): string {
+export function escapeRegexpChar(ch: string): string {
   return /[a-zA-Z0-9_-]/.test(ch) ? ch : `\\${ch}`;
 }
 

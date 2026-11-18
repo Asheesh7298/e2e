@@ -1,6 +1,5 @@
 ---
-"@e2e-dev/core": patch
 "@e2e-dev/web": patch
 ---
 
-`browser.waitForURL` and `expect(browser).toHaveURL` take a URL glob such as `'**/checkout'`. A string with a `*` or a `{` is a glob in Playwright's grammar, with `?` read literally; a string with neither is still an exact match.
+`browser.waitForURL` takes a URL glob such as `'**/checkout'`, as Playwright's does: a string with a `*` or a `{` is a glob, with `?` read literally, and a string with neither is still an exact match. `expect(browser).toHaveURL` keeps comparing a string exactly, as Playwright's does.

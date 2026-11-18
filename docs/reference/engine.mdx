@@ -1704,17 +1704,13 @@ export function urlMatches(
 
 ```ts
 urlMatches('https://shop.test/cart', '/cart', 'https://shop.test/'); // true
-urlMatches('https://shop.test/orders/7', '/orders/*', 'https://shop.test/'); // true
 ```
 
-A string with a `*` or a `{` is a glob in Playwright's URL grammar, resolved
-against `baseHref` unless it starts with `*` or a scheme such as `about:`. `?` in
-it is literal, and a resolved glob's scheme and host match in any letter case.
 `ignoreCase` works as on the locator matchers.
 
 | Throws | When |
 | --- | --- |
-| `INVALID_ARGUMENT` | `expected` is neither a string nor a `RegExp`, as in `toTextPattern`, or it is a glob that nests a `{` or leaves one unmatched. |
+| `INVALID_ARGUMENT` | `expected` is neither a string nor a `RegExp`, as in `toTextPattern`. |
 
 #### Site helpers
 

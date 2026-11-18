@@ -348,7 +348,7 @@ config fails the run with exit code 1. The default is `false`.
 
 ```ts
 await expect(screen.getByRole('dialog')).not.toBeVisible({ timeout: 10_000 });
-await expect(browser).toHaveURL('/dashboard');   // relative to the base URL; a glob like '**/dashboard'; or a RegExp
+await expect(browser).toHaveURL('/dashboard');   // relative to the base URL, or a RegExp
 expect(order).toMatchObject({ id: expect.any(Number), lines: [{ sku: 'a' }] });
 expect.soft(await screen.getByTestId('tax').textContent()).toBe('$8.00');  // kept, body runs on
 const users = expect(await response.json()).toMatchSchema(z.array(User)); // any Standard Schema; typed output
@@ -557,7 +557,8 @@ the opener is gone. `tabs()`, `newTab()`, `tab.activate()`, and
   `back({ timeout? })`, `forward({ timeout? })`: navigation on the test
   timeout by default; `goto` takes a base-relative path.
 - `url()`, `title()`, `waitForURL(url | RegExp, { timeout? })`: reads and a
-  URL wait; `waitForURL` matches like `toHaveURL`.
+  URL wait; `waitForURL` matches like `toHaveURL` and also takes a glob such as
+  `'**/checkout'`, which `toHaveURL` reads literally.
 - `locator(css)`: raw CSS or XPath; not portable, a last resort.
 - `frameLocator(css)`: a `Screen` scoped to one iframe
   (`browser.frameLocator('#payment').getByLabel('Card number')`); keeps

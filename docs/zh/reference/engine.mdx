@@ -1584,14 +1584,13 @@ export function urlMatches(
 
 ```ts
 urlMatches('https://shop.test/cart', '/cart', 'https://shop.test/'); // true
-urlMatches('https://shop.test/orders/7', '/orders/*', 'https://shop.test/'); // true
 ```
 
-包含 `*` 或 `{` 的字符串是采用 Playwright URL glob 语法的 glob，除了以 `*` 或 `about:` 等协议开头的 glob 外，都基于 `baseHref` 解析；其中的 `?` 按字面匹配，解析后的 glob 的协议和主机部分不区分大小写。`ignoreCase` 的行为与定位器匹配器中的相同。
+`ignoreCase` 的行为与定位器匹配器中的相同。
 
 | 抛出的错误 | 条件 |
 | --- | --- |
-| `INVALID_ARGUMENT` | `expected` 既不是字符串，也不是 `RegExp`，与 `toTextPattern` 相同；或者它是 `{` 嵌套或未闭合的 glob。 |
+| `INVALID_ARGUMENT` | `expected` 既不是字符串，也不是 `RegExp`，与 `toTextPattern` 相同。 |
 
 #### 站点辅助函数
 
