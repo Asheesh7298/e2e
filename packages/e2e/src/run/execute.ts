@@ -884,9 +884,10 @@ export class TargetExecutor extends EngineSessions implements SerialHost {
             hookAbort.abort(),
           );
         } catch (cause) {
-          // A skip agrees with a verdict that is already a skip; after any other verdict it comes too late.
+          // A skip agrees with a verdict that is already a skip; after any other verdict, a failure
+          // that outranks the body's skip included, it comes too late.
           if (!isRuntimeSkip(cause)) recordFailure(cause, 'afterEach');
-          else if (skipped === undefined) recordFailure(lateSkipError(), 'afterEach');
+          else if (skipped === undefined || failure !== undefined) recordFailure(lateSkipError(), 'afterEach');
         }
       }
       await this.settleAttempt(session, attemptId).catch((cause: unknown) => recordFailure(cause, 'afterEach'));

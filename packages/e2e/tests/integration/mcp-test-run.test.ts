@@ -166,6 +166,18 @@ test.afterEach(() => {
 test('skips in both hooks', async () => {});
 `;
 
+const SOFT_THEN_SKIP = `import { expect, test } from 'e2e';
+
+test.afterEach(() => {
+  test.skip(true, 'too late');
+});
+
+test('fails softly, then skips', async () => {
+  expect.soft(1).toBe(2);
+  test.skip(true, 'flag off');
+});
+`;
+
 const EXPECTED = `import { expect, test } from 'e2e';
 
 test('counter gap', { fail: 'the counter starts at one' }, async ({ app, screen }) => {
@@ -243,6 +255,7 @@ describe('open_session {test}', { timeout: 120_000 }, () => {
         'tests/marked-hooks.e2e.ts': MARKED_HOOKS,
         'tests/late-skip.e2e.ts': LATE_SKIP,
         'tests/skipped-twice.e2e.ts': SKIPPED_TWICE,
+        'tests/soft-then-skip.e2e.ts': SOFT_THEN_SKIP,
       });
       const transport = new StdioClientTransport({
         command: process.execPath,
@@ -293,6 +306,13 @@ describe('open_session {test}', { timeout: 120_000 }, () => {
       const closed = await invoke('close_session');
       expect(closed.text).toMatch(/^Session \S+ closed/);
       expect(closed.text).not.toContain('Cleanup');
+    });
+
+    it('refuses an afterEach skip at close_session after a test that failed softly, then skipped', async () => {
+      const opened = await invoke('open_session', { test: 'tests/soft-then-skip.e2e.ts' });
+      expect(opened.isError, opened.text).toBe(false);
+      const closed = await invoke('close_session');
+      expect(closed.text).toContain('Cleanup (afterEach): INVALID_ARGUMENT: test.skip() cannot skip a test from an afterEach hook or a fixture teardown');
     });
 
     it('opens a failing test with its code, line, code frame, and nearest nodes, on the screen it failed on', async () => {

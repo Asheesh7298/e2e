@@ -182,7 +182,7 @@ interface Started {
   readonly realm: Realm;
   readonly fixtures?: TestAttemptFixtures | undefined;
   readonly teardowns: readonly AttemptCleanup[];
-  /** Whether the test's verdict is a skip, which a later skip in its teardown agrees with. */
+  /** Whether the test's final verdict is a skip, which a later skip in its teardown agrees with. */
   readonly skipped: boolean;
 }
 
@@ -440,7 +440,7 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
       durationMs: Date.now() - startedMs,
       steps: steps.all().slice(0, stepsRan),
     };
-    return { started: { realm, fixtures, teardowns: fixtures?.cleanup() ?? [], skipped: skipped !== undefined }, outcome };
+    return { started: { realm, fixtures, teardowns: fixtures?.cleanup() ?? [], skipped: outcome.status === 'skipped' }, outcome };
   };
 
   const run = (): Promise<StandaloneTestOutcome> => {
