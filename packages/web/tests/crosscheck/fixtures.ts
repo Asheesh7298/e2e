@@ -77,6 +77,8 @@ export const FIXTURE_PAGES: readonly FixturePage[] = [
       <div role="Button" tabindex="0">Save</div>
       <div role="Link" tabindex="0">Docs</div>
       <div role="Article" aria-label="Post"><header aria-label="Post header">Heading</header></div>
+      <div role="group ARTICLE" aria-label="Upper fallback"><header aria-label="Upper fallback header">Site header</header></div>
+      <div role="group article" aria-label="Lower fallback"><header aria-label="Lower fallback header">Site header</header></div>
       <div role="button">Choose <div role="listbox"><div role="option" aria-selected="TRUE">Picked</div><div role="option" aria-selected="false">Skipped</div></div></div>
     `,
   },

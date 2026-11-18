@@ -156,6 +156,8 @@ describe('checked and selected', () => {
       <div role="Button" tabindex="0" data-testid="role">Save</div>
       <header data-testid="page-header">Site</header>
       <div role="Article" aria-label="Post"><header data-testid="article-header">Post header</header></div>
+      <div role="group ARTICLE"><header data-testid="upper-fallback-header">Site header</header></div>
+      <div role="group article"><header data-testid="lower-fallback-header">Site header</header></div>
       <div role="button" data-testid="embedded">Pick <div role="listbox"><div role="option" aria-selected="TRUE">Chosen</div><div role="option" aria-selected="false">Other</div></div></div>
     `);
     const nodes = await captureByTestId();
@@ -169,6 +171,9 @@ describe('checked and selected', () => {
     // A header is the page banner unless a sectioning role scopes it, in any case.
     expect(nodes.get('page-header')?.role).toBe('banner');
     expect(nodes.get('article-header')?.role).not.toBe('banner');
+    // Only an ancestor's first recognized role token scopes a header, as Chrome reads it.
+    expect(nodes.get('upper-fallback-header')?.role).toBe('banner');
+    expect(nodes.get('lower-fallback-header')?.role).toBe('banner');
     expect(nodes.get('embedded')?.name).toBe('Pick Chosen');
   });
 

@@ -144,10 +144,11 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
   const hasOwnName = (el: Element): boolean =>
     ['aria-label', 'aria-labelledby', 'title'].some((attribute) => (el.getAttribute(attribute) ?? '').trim() !== '');
 
-  const SECTIONING_SCOPE = [
-    'article', 'aside', 'main', 'nav', 'section',
-    ...['article', 'complementary', 'main', 'navigation', 'region'].map((role) => `[role~="${role}" i]`),
-  ].join(', ');
+  const SECTIONING_TAGS = ['article', 'aside', 'main', 'nav', 'section'];
+  const SECTIONING_ROLES = ['article', 'complementary', 'main', 'navigation', 'region'];
+  /** A sectioning element, or one whose effective explicit role (its first recognized token) is a sectioning role. */
+  const isSectioning = (el: Element): boolean =>
+    SECTIONING_TAGS.indexOf(el.tagName.toLowerCase()) !== -1 || SECTIONING_ROLES.indexOf(explicitRole(el) ?? '') !== -1;
 
   /**
    * True when a `<header>` or `<footer>` is the page's, not an article's or a
@@ -157,7 +158,9 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
    */
   const isPageLevel = (el: Element): boolean => {
     for (let candidate: Element | null = el; candidate !== null;) {
-      if (candidate.closest(SECTIONING_SCOPE) !== null) return false;
+      for (let ancestor: Element | null = candidate; ancestor !== null; ancestor = ancestor.parentElement) {
+        if (isSectioning(ancestor)) return false;
+      }
       const root = candidate.getRootNode();
       candidate = root instanceof ShadowRoot ? root.host : null;
     }

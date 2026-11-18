@@ -224,7 +224,12 @@ const NODE_READ = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_
  * is the one the tree reads, the first recognized token in any letter case.
  */
 async function radioKind(element: ElementHandle<Element>): Promise<'native' | 'aria' | undefined> {
-  if (await element.evaluate((node) => node instanceof HTMLInputElement && node.type === 'radio')) return 'native';
+  const kind = await element.evaluate((node) => {
+    if (node instanceof HTMLInputElement && node.type === 'radio') return 'native';
+    // Only a role that names a radio in some letter case needs the reader's verdict.
+    return /radio/i.test(node.getAttribute('role') ?? '') ? 'maybe' : undefined;
+  });
+  if (kind !== 'maybe') return kind;
   const node = await element.evaluate(readSemanticsFunction<typeof NODE_READ.mode>, NODE_READ);
   return node.role === 'radio' ? 'aria' : undefined;
 }
