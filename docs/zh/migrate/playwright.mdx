@@ -136,7 +136,7 @@ test('checkout', async ({ app, agent, screen }) => {
 | --- | --- |
 | `page.goto(path)` | `app.open(path)`；需要选项时使用 `browser.goto(url, { waitUntil, timeout })` |
 | `page.goBack()`, `goForward()`, `reload()`, `url()`, `title()`, `setViewportSize()` | `browser.back()`、`forward()`、`reload()`、`url()`、`title()`、`setViewport()` |
-| `page.waitForURL(url)` | `browser.waitForURL(url)`，使用 `RegExp` 或精确 URL，不支持 glob |
+| `page.waitForURL(url)` | `browser.waitForURL(url)`，使用 glob、`RegExp` 或精确 URL |
 | `page.screenshot()` | `app.screenshot(label)`，截取视口并附加到报告 |
 | 每个测试使用全新的 `context` | 每次尝试同样如此；`app.restart()` 重新创建上下文，`app.clearState()` 还会清除存储 |
 
@@ -259,7 +259,7 @@ export const test = base.extend<{ accountPage: AccountPage }>({
 | Playwright | 目前可用的方式 |
 | --- | --- |
 | `devices['iPhone 15']`, `isMobile`, `hasTouch`, `deviceScaleFactor` | `web({ viewport, userAgent })`；真实触摸使用移动端测试目标 |
-| `waitForURL(glob)`, `waitForFunction()` | `RegExp`；通过 `expect.poll` 检查 `browser.evaluate` |
+| `waitForFunction()` | 通过 `expect.poll` 检查 `browser.evaluate` |
 | `waitForResponse(predicate)`, `waitForRequest()`, `page.on('request')`, `response.ok()` | `browser.waitForResponse(pattern)`，然后在测试中检查响应，以 `status` 代替 `ok()`。对于请求，使用 `browser.route` 处理函数记录 `route.request`，然后调用 `route.fallback()` |
 | `route.fulfill({ response })`, `route.abort(code)`, `route.fetch(options)`, `request.postDataJSON()` | `route.fetch()` 返回的 `status`、`headers` 和 `body`；`JSON.parse(route.request.postData)` |
 | `page.addLocatorHandler()` | 在 `beforeEach` 中关闭覆盖层，或通过 `browser.setCookies` 设置其同意 Cookie |

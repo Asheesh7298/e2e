@@ -136,7 +136,7 @@ test('checkout', async ({ app, agent, screen }) => {
 | --- | --- |
 | `page.goto(path)` | `app.open(path)`。オプションを使うなら `browser.goto(url, { waitUntil, timeout })` |
 | `page.goBack()`, `goForward()`, `reload()`, `url()`, `title()`, `setViewportSize()` | `browser.back()`、`forward()`、`reload()`、`url()`、`title()`、`setViewport()` |
-| `page.waitForURL(url)` | `browser.waitForURL(url)`。glob ではなく `RegExp` または完全一致の URL |
+| `page.waitForURL(url)` | `browser.waitForURL(url)`。glob、`RegExp`、または完全一致の URL |
 | `page.screenshot()` | `app.screenshot(label)`。ビューポートを撮影し、レポートに添付 |
 | テストごとの新しい `context` | 試行ごとに同じ仕組み。`app.restart()` は作り直し、`app.clearState()` はストレージも消去 |
 
@@ -259,7 +259,7 @@ export const test = base.extend<{ accountPage: AccountPage }>({
 | Playwright | 現在使える方法 |
 | --- | --- |
 | `devices['iPhone 15']`, `isMobile`, `hasTouch`, `deviceScaleFactor` | `web({ viewport, userAgent })`。実際のタッチにはモバイルターゲット |
-| `waitForURL(glob)`, `waitForFunction()` | `RegExp`。`browser.evaluate` を `expect.poll` で確認 |
+| `waitForFunction()` | `browser.evaluate` を `expect.poll` で確認 |
 | `waitForResponse(predicate)`, `waitForRequest()`, `page.on('request')`, `response.ok()` | `browser.waitForResponse(pattern)` の後、テスト内でレスポンスを検証。`ok()` の代わりに `status`。リクエストは `browser.route` ハンドラーで `route.request` を記録し、`route.fallback()` を呼ぶ |
 | `route.fulfill({ response })`, `route.abort(code)`, `route.fetch(options)`, `request.postDataJSON()` | `route.fetch()` の `status`、`headers`、`body`。`JSON.parse(route.request.postData)` |
 | `page.addLocatorHandler()` | `beforeEach` でオーバーレイを閉じる、または `browser.setCookies` で同意の Cookie を設定 |
