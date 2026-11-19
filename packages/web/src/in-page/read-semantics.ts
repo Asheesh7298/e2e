@@ -147,8 +147,13 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
   const SECTIONING_TAGS = ['article', 'aside', 'main', 'nav', 'section'];
   const SECTIONING_ROLES = ['article', 'complementary', 'main', 'navigation', 'region'];
   /** A sectioning element, or one whose effective explicit role (its first recognized token) is a sectioning role. */
-  const isSectioning = (el: Element): boolean =>
-    SECTIONING_TAGS.indexOf(el.tagName.toLowerCase()) !== -1 || SECTIONING_ROLES.indexOf(explicitRole(el) ?? '') !== -1;
+  const isSectioning = (el: Element): boolean => {
+    if (SECTIONING_TAGS.indexOf(el.tagName.toLowerCase()) !== -1) return true;
+    const role = explicitRole(el);
+    // Chrome never scopes a header by region; only the lowercase token Playwright's [role=region] matches does.
+    if (role === 'region') return (el.getAttribute('role') ?? '').split(/[ \t\n\f\r]+/).indexOf('region') !== -1;
+    return SECTIONING_ROLES.indexOf(role ?? '') !== -1;
+  };
 
   /**
    * True when a `<header>` or `<footer>` is the page's, not an article's or a

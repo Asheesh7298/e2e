@@ -158,6 +158,8 @@ describe('checked and selected', () => {
       <div role="Article" aria-label="Post"><header data-testid="article-header">Post header</header></div>
       <div role="group ARTICLE"><header data-testid="upper-fallback-header">Site header</header></div>
       <div role="group article"><header data-testid="lower-fallback-header">Site header</header></div>
+      <div role="Region" aria-label="R1"><header data-testid="mixed-region-header">Region header</header></div>
+      <div role="REGION"><header data-testid="upper-region-header">Region header</header></div>
       <div role="button" data-testid="embedded">Pick <div role="listbox"><div role="option" aria-selected="TRUE">Chosen</div><div role="option" aria-selected="false">Other</div></div></div>
     `);
     const nodes = await captureByTestId();
@@ -174,6 +176,9 @@ describe('checked and selected', () => {
     // Only an ancestor's first recognized role token scopes a header, as Chrome reads it.
     expect(nodes.get('upper-fallback-header')?.role).toBe('banner');
     expect(nodes.get('lower-fallback-header')?.role).toBe('banner');
+    // Chrome never scopes a header by region; only the lowercase token Playwright's [role=region] matches does.
+    expect(nodes.get('mixed-region-header')?.role).toBe('banner');
+    expect(nodes.get('upper-region-header')?.role).toBe('banner');
     expect(nodes.get('embedded')?.name).toBe('Pick Chosen');
   });
 

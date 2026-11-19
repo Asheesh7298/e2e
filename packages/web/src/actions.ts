@@ -230,8 +230,9 @@ async function radioKind(element: ElementHandle<Element>): Promise<'native' | 'a
     return /(?:^|[ \t\n\f\r])radio(?:$|[ \t\n\f\r])/i.test(node.getAttribute('role') ?? '') ? 'maybe' : undefined;
   });
   if (kind !== 'maybe') return kind;
-  const node = await element.evaluate(readSemanticsFunction<typeof NODE_READ.mode>, NODE_READ);
-  return node.role === 'radio' ? 'aria' : undefined;
+  // The role only adds a hint to a failure message, so a reader that cannot read this node must not stop the click.
+  const node = await element.evaluate(readSemanticsFunction<typeof NODE_READ.mode>, NODE_READ).catch(() => undefined);
+  return node?.role === 'radio' ? 'aria' : undefined;
 }
 
 /**
