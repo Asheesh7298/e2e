@@ -592,8 +592,8 @@ the opener is gone. `tabs()`, `newTab()`, `tab.activate()`, and
   `back({ timeout? })`, `forward({ timeout? })`: navigation on the test
   timeout by default; `goto` takes a base-relative path.
 - `url()`, `title()`, `waitForURL(url | RegExp, { timeout? })`: reads and a
-  URL wait; `waitForURL` matches like `toHaveURL` and also takes a glob such as
-  `'**/checkout'`, which `toHaveURL` reads literally.
+  URL wait; `waitForURL` takes a URL glob such as `'**/checkout'` or a
+  `RegExp`, and `toHaveURL` compares a string exactly.
 - `locator(css)`: raw CSS or XPath; not portable, a last resort.
 - `frameLocator(css)`: a `Screen` scoped to one iframe
   (`browser.frameLocator('#payment').getByLabel('Card number')`); keeps
