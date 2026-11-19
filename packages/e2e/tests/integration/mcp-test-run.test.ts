@@ -207,6 +207,16 @@ test.setup('member signs in', { sessions: ['member'] }, async ({ app, session })
 });
 `;
 
+const PAUSE = `import { expect, test } from 'e2e';
+
+test('counts past a pause', async ({ app, screen }) => {
+  await app.open('/');
+  await screen.pause();
+  await screen.getByRole('button', { name: 'Increment' }).tap();
+  await expect(screen.getByRole('status', { name: 'Counter' })).toHaveText('1');
+});
+`;
+
 /** The one-based line of the first line of `source` that holds `fragment`. */
 const lineOf = (source: string, fragment: string): number => source.split('\n').findIndex((line) => line.includes(fragment)) + 1;
 
@@ -256,6 +266,7 @@ describe('open_session {test}', { timeout: 120_000 }, () => {
         'tests/late-skip.e2e.ts': LATE_SKIP,
         'tests/skipped-twice.e2e.ts': SKIPPED_TWICE,
         'tests/soft-then-skip.e2e.ts': SOFT_THEN_SKIP,
+        'tests/pause.e2e.ts': PAUSE,
       });
       const transport = new StdioClientTransport({
         command: process.execPath,
@@ -313,6 +324,14 @@ describe('open_session {test}', { timeout: 120_000 }, () => {
       expect(opened.isError, opened.text).toBe(false);
       const closed = await invoke('close_session');
       expect(closed.text).toContain('Cleanup (afterEach): INVALID_ARGUMENT: test.skip() cannot skip a test from an afterEach hook or a fixture teardown');
+    });
+
+    it('runs the test past its screen.pause() right away', async () => {
+      const opened = await invoke('open_session', { test: 'tests/pause.e2e.ts:3' });
+      expect(opened.isError, opened.text).toBe(false);
+      expect(opened.text).toMatch(/^Test "counts past a pause" \(tests\/pause\.e2e\.ts:3\) passed after \S+; 3 steps ran\.\n/);
+      expect(await observe()).toContain('status "Counter" text="1"');
+      expect((await invoke('close_session')).isError).toBe(false);
     });
 
     it('opens a failing test with its code, line, code frame, and nearest nodes, on the screen it failed on', async () => {

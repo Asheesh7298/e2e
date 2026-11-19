@@ -1,7 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { PassThrough } from 'node:stream';
 import picocolors from 'picocolors';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compileGlobList } from '@e2e-dev/core/lib/internal/globs';
@@ -23,7 +22,9 @@ import {
   type RunCancel,
   type WatchFn,
   type WatchScope,
+  type WatchSessionOptions,
 } from '../../src/cli/watch.ts';
+import { fakeStdin } from '../helpers/fake-stdin.ts';
 
 const CANCEL = Symbol('cancel');
 const textMock = vi.hoisted(() => vi.fn());
@@ -37,12 +38,6 @@ function fakeWatch(listeners: Map<string, (event: string, filename: string | nul
     listeners.set(dir, listener);
     return { close: () => closed.push(dir), on: () => undefined };
   };
-}
-
-/** A stdin stand-in: keys arrive as writes, raw mode is recorded. */
-function fakeStdin(): NodeJS.ReadStream & { setRawMode: ReturnType<typeof vi.fn> } {
-  const setRawMode = vi.fn();
-  return Object.assign(new PassThrough(), { setRawMode }) as unknown as NodeJS.ReadStream & { setRawMode: typeof setRawMode };
 }
 
 describe('planRun', () => {
@@ -589,6 +584,49 @@ describe('watchSession', () => {
 
     stdin.write('q');
     await expect(session).resolves.toBe(1);
+  });
+
+  it('ignores watch keys while a run has paused them, and keeps the session when the run cancels itself', async () => {
+    const stdin = fakeStdin();
+    const signals = new SignalLadder();
+    let cancel: RunCancel | undefined;
+    let keys: Parameters<WatchSessionOptions['run']>[2];
+    let release: (() => void) | undefined;
+    const run = async (_options: RunOptions, runCancel: RunCancel, runKeys: typeof keys): Promise<RunOutcome> => {
+      cancel = runCancel;
+      keys = runKeys;
+      await new Promise<void>((resolve) => (release = resolve));
+      return passed(130);
+    };
+    const written: string[] = [];
+    const session = watchSession({
+      base: {},
+      cwd: root,
+      signals,
+      run,
+      stdin,
+      write: (text) => written.push(text),
+      writeError: (text) => written.push(text),
+      pc,
+      clear: false,
+      watch: fakeWatch(new Map()),
+    });
+    await settle();
+    keys?.pause();
+    stdin.write('q');
+    await settle();
+    expect(cancel?.interruptSignal.aborted).toBe(false);
+
+    keys?.resume();
+    cancel?.stop();
+    expect(cancel?.interruptSignal.aborted).toBe(true);
+    release?.();
+    await settle();
+    expect(written.join('')).toContain('run cancelled');
+    expect(signals.interruptSignal.aborted).toBe(false);
+
+    stdin.write('q');
+    await expect(session).resolves.toBe(0);
   });
 
   it('ends after a run the interrupt cut short, with its exit code', async () => {
