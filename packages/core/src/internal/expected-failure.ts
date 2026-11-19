@@ -49,7 +49,6 @@ export function markRunningTestExpectedToFail(condition: boolean, reason: string
   attempt.expectFailure(expectedFailureReason(reason));
 }
 
-/** Why a test cannot be marked from its teardown. */
 /** Why a mark or skip made from an afterEach hook or a fixture teardown comes too late; `test.skip()`'s refusal shares it. */
 export const LATE_VERDICT = 'a test from an afterEach hook or a fixture teardown: its verdict is already reached';
 
