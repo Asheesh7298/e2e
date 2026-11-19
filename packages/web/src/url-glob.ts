@@ -1,9 +1,10 @@
 /**
  * The web engine's one URL pattern grammar, Playwright's. `browser.waitForURL`,
- * `route`, `unroute`, and `waitForResponse` read a string with a `*` or a `{`
- * as a URL glob, a RegExp against the full URL, and any other string as the
- * exact URL `expect(browser).toHaveURL` compares (`urlMatches` in core):
- * Playwright's `toHaveURL` never reads a glob, so only these read one.
+ * `route`, `unroute`, and `waitForResponse` read every string as a URL glob,
+ * so one with no wildcard matches that URL exactly, and a RegExp against the
+ * full URL. `expect(browser).toHaveURL` compares a string exactly
+ * (`urlMatches` in core): Playwright's `toHaveURL` never reads a glob, so only
+ * these read one.
  */
 
 import { TestError, urlMatches, type TextPattern } from '@e2e-dev/core/engine';
@@ -15,22 +16,23 @@ const UNRESOLVED_GLOB_SCHEMES = ['about:', 'data:', 'chrome:', 'edge:', 'file:']
 export interface UrlPattern {
   /** Whether a URL matches the pattern. */
   readonly matches: (url: string) => boolean;
-  /** The pattern as a failed wait prints it: a glob as written, any other string resolved against the base, a RegExp as written. */
+  /** The pattern as a failed wait prints it: a string resolved against the base, a RegExp as written. */
   readonly label: string;
 }
 
 /**
- * Compiles a `waitForURL`, `route`, `unroute`, or `waitForResponse` pattern:
- * a string with a `*` or a `{` as a URL glob, and anything else as
- * `expect(browser).toHaveURL` compares it. A glob that nests a `{` or leaves
- * one unmatched is `INVALID_ARGUMENT` here, before anything is matched.
+ * Compiles a `waitForURL`, `route`, `unroute`, or `waitForResponse` pattern as
+ * Playwright's `urlMatches` does: a string is a URL glob resolved against the
+ * base URL, the empty string matches any URL, and a RegExp tests the full
+ * URL. A glob that nests a `{` or leaves one unmatched is `INVALID_ARGUMENT`
+ * here, before anything is matched.
  */
 export function urlPattern(expected: string | RegExp, baseHref: string): UrlPattern {
-  if (typeof expected === 'string' && isUrlGlob(expected)) {
-    const pattern = new RegExp(urlGlobSource(resolveUrlGlob(expected, baseHref)));
-    return { matches: (url) => pattern.test(serialized(url)), label: expected };
-  }
-  return { matches: (url) => urlMatches(url, expected, baseHref), label: describeExpectedUrl(expected, baseHref) };
+  if (typeof expected !== 'string') return { matches: (url) => urlMatches(url, expected, baseHref), label: String(expected) };
+  if (expected === '') return { matches: () => true, label: expected };
+  const glob = resolveUrlGlob(expected, baseHref);
+  const pattern = new RegExp(urlGlobSource(glob));
+  return { matches: (url) => pattern.test(serialized(url)), label: glob };
 }
 
 /**
@@ -54,9 +56,9 @@ export function urlPatternsEqual(a: TextPattern, b: TextPattern): boolean {
   return false;
 }
 
-/** Whether a string reads as a glob: it holds a `*` or a `{`, escaped or not. */
-function isUrlGlob(value: string): boolean {
-  return value.includes('*') || value.includes('{');
+/** Whether a scheme segment is a pattern rather than a scheme: it holds a `*` or a `{`, as Playwright reads it. */
+function isSchemePattern(segment: string): boolean {
+  return segment.includes('*') || segment.includes('{');
 }
 
 /** The current URL as `urlMatches` compares it: serialized by the URL parser, else as given. */
@@ -112,7 +114,7 @@ function resolveUrlGlob(glob: string, baseHref: string): string {
   };
   const relative = glob.split('/').map((segment, index) => {
     if (segment === '.' || segment === '..' || segment === '') return segment;
-    if (index === 0 && segment.endsWith(':')) return isUrlGlob(segment) ? hold(segment, 'http:') : segment;
+    if (index === 0 && segment.endsWith(':')) return isSchemePattern(segment) ? hold(segment, 'http:') : segment;
     if (!/[*?{}\\]/.test(segment)) return segment;
     // The query is held on its own, so a later `..` stays in the query instead of eating this segment.
     const query = segment.indexOf('?');

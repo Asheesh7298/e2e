@@ -550,15 +550,14 @@ await browser.waitForURL('**/checkout');
 await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
 ```
 
-- A relative string with no `*` or `{` resolves against the base URL and
-  matches exactly after normalization.
-- A string with a `*` or a `{` is a glob, read as Playwright reads a URL glob:
-  `*` matches within one path segment, `**` across `/`, `{a,b}` matches either,
-  and `\` escapes the next character. `?` is literal, so a query string reads as
-  written. A glob resolves against the base URL unless it starts with `*` or a
-  scheme such as `about:`, and a resolved glob's scheme and host match in any
-  letter case. Non-ASCII text and spaces in a glob match the URL as the browser
-  encodes it.
+- A string is a glob, read as Playwright reads a URL glob: `*` matches within
+  one path segment, `**` across `/`, `{a,b}` matches either, and `\` escapes
+  the next character. `?` is literal, so a query string reads as written, and a
+  string with no wildcard matches that URL exactly. A glob resolves against the
+  base URL unless it starts with `*` or a scheme such as `about:`, and a
+  resolved glob's scheme and host match in any letter case. Non-ASCII text and
+  spaces in a glob match the URL as the browser encodes it. The empty string
+  matches any URL.
 - `expect(browser).toHaveURL` reads `*` and `{` as themselves, as Playwright's
   does; [`route`](#route), `unroute`, and `waitForResponse` read the same
   globs as this wait.
@@ -566,7 +565,7 @@ await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
 
 | Throws | When |
 | --- | --- |
-| `INVALID_ARGUMENT` | A pattern that is not a string or `RegExp` (a predicate function, say), a glob that nests a `{` or leaves one unmatched, or an option other than `timeout`, such as Playwright's `waitUntil`. |
+| `INVALID_ARGUMENT` | A pattern that is not a string or `RegExp` (a predicate function, say), a glob that nests a `{` or leaves a `{` or `}` unmatched, or an option other than `timeout`, such as Playwright's `waitUntil`. |
 | `ASSERTION_FAILED` | The URL did not match before the timeout. |
 
 #### `locator`
@@ -672,10 +671,9 @@ timeout, without deciding the route.
 It does not follow redirects, which could take it past the navigation rule.
 
 - The pattern is a string or a `RegExp`, read as [`waitForURL`](#waitforurl)
-  reads one: a string with a `*` or a `{` is a glob in Playwright's grammar
-  (`?` literal, `{a,b}` either), any other string is an exact URL, and a
-  relative one resolves against the base URL. `unroute` and `waitForResponse`
-  take the same patterns.
+  reads one: a string is a glob in Playwright's grammar (`?` literal, `{a,b}`
+  either) resolved against the base URL, so one with no wildcard is an exact
+  URL. `unroute` and `waitForResponse` take the same patterns.
 - A route survives `app.restart()`, `app.clearState()`, and session restore.
 - Routes run newest first.
 - The handler must decide exactly once, with `fulfill`, `continue`,

@@ -10,7 +10,7 @@ function matches(expected: string | RegExp, url: string, base = BASE): boolean {
 }
 
 describe('URL globs', () => {
-  it('reads a string with a * or a { as a glob, resolved against the base URL', () => {
+  it('reads a string as a glob, resolved against the base URL', () => {
     expect(matches('**/checkout', 'http://localhost:3000/checkout')).toBe(true);
     expect(matches('**/checkout', 'https://shop.test/checkout')).toBe(true);
     expect(matches('/orders/*', 'http://localhost:3000/orders/42')).toBe(true);
@@ -71,7 +71,7 @@ describe('URL globs', () => {
     expect(matches('x*', 'http://localhost:3000/$_0_$/xyz', 'http://localhost:3000/$_0_$/')).toBe(true);
   });
 
-  it('compares a string with no * or { exactly, resolved against the base, as toHaveURL does', () => {
+  it('matches a string with no wildcard exactly, resolved against the base', () => {
     expect(matches('/search?q=shoes', 'http://localhost:3000/search?q=shoes')).toBe(true);
     expect(matches('/search?q=s', 'http://localhost:3000/search?q=shoes')).toBe(false);
     expect(matches('/api/flags', 'http://localhost:3000/api/flags')).toBe(true);
@@ -84,9 +84,16 @@ describe('URL globs', () => {
     expect(matches(/api\/\w+$/, 'http://x.test/api/a/b')).toBe(false);
   });
 
-  it('labels a glob as written, another string resolved, and a RegExp as written', () => {
+  it('reads every string as Playwright does: an escape in one with no wildcard, and the empty string as any URL', () => {
+    expect(matches('/a\\.b', 'http://localhost:3000/a.b')).toBe(true);
+    expect(matches('', 'http://localhost:3000/orders/7')).toBe(true);
+    expect(matches('', 'about:blank')).toBe(true);
+  });
+
+  it('labels a string resolved against the base, and a RegExp as written', () => {
     expect(urlPattern('**/checkout', BASE).label).toBe('**/checkout');
     expect(urlPattern('/orders', BASE).label).toBe('http://localhost:3000/orders');
+    expect(urlPattern('/orders/*', BASE).label).toBe('http://localhost:3000/orders/*');
     expect(urlPattern(/orders/, BASE).label).toBe('/orders/');
   });
 

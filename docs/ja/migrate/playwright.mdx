@@ -147,7 +147,7 @@ test('checkout', async ({ app, agent, screen }) => {
 | --- | --- |
 | `page.route(pattern, handler)`, `unroute()`, `unrouteAll()` | `browser` の同名メソッド。パターンは URL 全体に対する `RegExp` または glob |
 | `route.fulfill()`, `continue()`, `fallback()`, `abort()`, `fetch()` | 同じ。各オプションは [`route`](/reference/web#route) を参照 |
-| `page.waitForResponse(pattern)` | `browser.waitForResponse(pattern)`。`'/api/orders'` ではなく `'**/api/orders'` |
+| `page.waitForResponse(pattern)` | `browser.waitForResponse(pattern)`。同じ URL グロブを使います |
 | `page.on('dialog')`, `page.waitForEvent('download')` | `browser.onDialog('accept')` またはハンドラー。`browser.waitForDownload(() => trigger)` |
 | `page.waitForEvent('popup')` | 新しいタブをアクティブにする `browser.waitForPopup(() => trigger)`。[タブ](/reference/web#tabs)を参照 |
 | `context.pages()`, `context.newPage()`, `page.bringToFront()` | `browser.tabs()`、`browser.newTab()`、`tab.activate()`。`context.on('page')` イベントはなし |

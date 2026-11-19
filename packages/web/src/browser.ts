@@ -1002,8 +1002,8 @@ async function pollBrowser(
 
 /**
  * `browser.waitForURL`: the poll `expect(browser).toHaveURL` runs, except
- * that a string with a `*` or a `{` is a URL glob (`url-glob.ts`), printed as
- * written when the wait fails. Playwright's `toHaveURL` never reads a glob,
+ * that a string is a URL glob (`url-glob.ts`), printed resolved against the
+ * base URL when the wait fails. Playwright's `toHaveURL` never reads a glob,
  * so the matcher keeps its exact comparison.
  */
 function waitForUrl(deps: ExpectationDeps, expected: string | RegExp, timeout: number | undefined): Promise<void> {

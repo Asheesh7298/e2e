@@ -158,7 +158,7 @@ run only in a browser, so a test that uses it declares
 | --- | --- |
 | `page.route(pattern, handler)`, `unroute()`, `unrouteAll()` | the same on `browser`; a pattern is a `RegExp` or a glob on the full URL |
 | `route.fulfill()`, `continue()`, `fallback()`, `abort()`, `fetch()` | the same, see [`route`](/reference/web#route) for the options each takes |
-| `page.waitForResponse(pattern)` | `browser.waitForResponse(pattern)`; `'**/api/orders'`, not `'/api/orders'` |
+| `page.waitForResponse(pattern)` | `browser.waitForResponse(pattern)` with the same URL globs |
 | `page.on('dialog')`, `page.waitForEvent('download')` | `browser.onDialog('accept')` or a handler; `browser.waitForDownload(() => trigger)` |
 | `page.waitForEvent('popup')` | `browser.waitForPopup(() => trigger)`, which makes the new tab active, see [Tabs](/reference/web#tabs) |
 | `context.pages()`, `context.newPage()`, `page.bringToFront()` | `browser.tabs()`, `browser.newTab()`, `tab.activate()`; no `context.on('page')` event |

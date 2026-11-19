@@ -408,13 +408,18 @@ describe('browser.route decisions', () => {
     ['**/api/my file*', '/api/my%20file.txt', true],
   ];
 
-  it.each(SHARED_PATTERNS)('reads %s against %s the same through route and waitForURL', async (pattern, pathname, expected) => {
+  it.each(SHARED_PATTERNS)('reads %s against %s the same through route, waitForURL, and waitForResponse', async (pattern, pathname, expected) => {
     await browser.route(pattern, (route) => route.fulfill({ body: 'routed' }));
     expect((await fetchText(`${origin}${pathname}`)) === 'routed', 'route').toBe(expected);
     await browser.unrouteAll();
     await page.goto(`${origin}${pathname}`);
     const waited = await browser.waitForURL(pattern, { timeout: 200 }).then(() => true, () => false);
     expect(waited, 'waitForURL').toBe(expected);
+    const [responded] = await Promise.all([
+      browser.waitForResponse(pattern, { timeout: 300 }).then(() => true, () => false),
+      page.evaluate((url) => { void fetch(url).then((reply) => reply.text()).catch(() => undefined); }, `${origin}${pathname}`),
+    ]);
+    expect(responded, 'waitForResponse').toBe(expected);
   });
 
   it('continue goes to the network past an earlier route', async () => {
