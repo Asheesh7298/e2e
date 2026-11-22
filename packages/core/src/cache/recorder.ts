@@ -105,6 +105,21 @@ export class TraceRecorder {
   }
 
   /**
+   * Turns the recording from `index` on into a gap for this run's data, as
+   * `recordDerivedGap` records one: the actions there were the pieces of a
+   * value the step derived (values typed in a row that join into a code the
+   * screen showed), and none of them may replay. A recording that never
+   * replays (truncated), or whose replay already hands off at or before
+   * `index`, is left as it is. Later actions are recorded after the gap.
+   */
+  gapFrom(index: number, reason: DerivedReason): void {
+    if (this.truncated || index < 0 || index >= this.actions.length) return;
+    if (this.actions.slice(0, index + 1).some((action) => action.name === 'tool')) return;
+    this.actions.length = index;
+    this.recordDerivedGap(reason);
+  }
+
+  /**
    * Concludes recording into a trace, or undefined when nothing was recorded —
    * a step that committed no actions has no flow worth replaying.
    */

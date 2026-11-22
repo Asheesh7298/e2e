@@ -198,6 +198,50 @@ describe('TraceRecorder', () => {
     expect(trace?.actions[1]).toEqual({ name: 'tool', summary: 'tool seed_cart' });
   });
 
+  describe('gapFrom', () => {
+    const digitBox = redacted({ ref: { id: 'n9', revision: 'r1' }, role: 'textbox', name: 'Digit 1' });
+    const navigate = { name: 'navigate', url: 'http://localhost/one-time-code' } as const;
+    const gap = { name: 'tool', summary: 'tool type (run-time value)', derived: 'minted-token' };
+    const typeDigits = (recorder: TraceRecorder): void => {
+      for (const digit of '482913') recorder.record({ name: 'type', node: digitBox, value: digit });
+    };
+
+    it('turns the recording from the first piece on into one derived gap', () => {
+      const recorder = makeRecorder();
+      recorder.record(navigate);
+      typeDigits(recorder);
+      recorder.gapFrom(1, 'minted-token');
+      expect(recorder.finalize(conclusion)?.actions).toEqual([expect.objectContaining({ name: 'navigate' }), gap]);
+    });
+
+    it('keeps recording after the gap', () => {
+      const recorder = makeRecorder();
+      typeDigits(recorder);
+      recorder.gapFrom(0, 'minted-token');
+      recorder.record({ name: 'tap', node: upgradeButton });
+      expect(recorder.finalize(conclusion)?.actions.map((action) => action.name)).toEqual(['tool', 'tap']);
+    });
+
+    it('changes nothing when the replay already hands off at or before the piece', () => {
+      const recorder = makeRecorder();
+      recorder.recordGap('seed_cart');
+      typeDigits(recorder);
+      recorder.gapFrom(1, 'minted-token');
+      const actions = recorder.finalize(conclusion)?.actions;
+      expect(actions).toHaveLength(7);
+      expect(actions?.[0]).toEqual({ name: 'tool', summary: 'tool seed_cart' });
+    });
+
+    it('changes nothing on a truncated recording, which never replays', () => {
+      const recorder = makeRecorder({ maxActions: 3 });
+      typeDigits(recorder);
+      recorder.gapFrom(0, 'minted-token');
+      const trace = recorder.finalize(conclusion);
+      expect(trace?.truncated).toBe(true);
+      expect(trace?.actions.map((action) => action.name)).toEqual(['type', 'type', 'type']);
+    });
+  });
+
   it('truncates past the action cap instead of dropping the flag', () => {
     const recorder = makeRecorder({ maxActions: 2 });
     recorder.record({ name: 'tap', node: upgradeButton });
