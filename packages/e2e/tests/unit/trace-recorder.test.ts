@@ -222,14 +222,14 @@ describe('TraceRecorder', () => {
       expect(recorder.finalize(conclusion)?.actions.map((action) => action.name)).toEqual(['tool', 'tap']);
     });
 
-    it('changes nothing when the replay already hands off at or before the piece', () => {
+    it('drops the pieces without a new gap when an earlier gap already hands replay off', () => {
       const recorder = makeRecorder();
       recorder.recordGap('seed_cart');
       typeDigits(recorder);
       recorder.gapFrom(1, 'minted-token');
       const actions = recorder.finalize(conclusion)?.actions;
-      expect(actions).toHaveLength(7);
-      expect(actions?.[0]).toEqual({ name: 'tool', summary: 'tool seed_cart' });
+      // Replay hands off at seed_cart, so the digits after it never replay and are not kept.
+      expect(actions).toEqual([{ name: 'tool', summary: 'tool seed_cart' }]);
     });
 
     it('changes nothing on a truncated recording, which never replays', () => {

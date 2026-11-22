@@ -2,4 +2,4 @@
 "@e2e-dev/core": patch
 ---
 
-Values the agent types in a row into several fields, with only taps or `Tab` presses between them, are judged joined: when they join into a code the screen showed, the recording becomes a gap from the first piece, so a replay never types the last run's code into boxes that declare no `autocomplete="one-time-code"`, which includes every field on iOS and Android.
+Values the agent types in a row into several fields, with only taps or `Tab` presses between them, are judged joined: when they join into a code the screen showed, the recording becomes a gap from the first piece, so a replay never types the last run's code into boxes that declare no `autocomplete="one-time-code"`. This reaches boxes the web engine reports without that purpose, and every field on iOS and Android, where the mobile engine reports no one-time-code purpose at all. The accepted cost: unrelated short values typed in a row whose join happens to match text on screen are also left out of the recording and run live.

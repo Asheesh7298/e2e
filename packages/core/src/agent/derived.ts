@@ -33,10 +33,10 @@
  * - `date`: a date or a clock time, which the model reckons from today.
  *
  * Values typed in a row into several fields are also judged joined
- * (`derivedJoinReason`): a code the screen showed and the model typed three
- * and three, or one digit per box, is no word of the screen in any one piece,
- * and is the whole code once its pieces join. The recording becomes a gap
- * from the first piece on.
+ * (`derivedJoinReason`), after each piece is judged on its own above: a code
+ * the screen showed and the model typed three and three, or one digit per
+ * box, is the whole code once its pieces join, even where no one piece is a
+ * word of the screen. The recording becomes a gap from the first piece on.
  *
  * A bare word inside a sentence is none of these: "one" typed on a page that
  * lists "Row one" is the model's own choice, and the recording replays it.
