@@ -276,6 +276,7 @@ describe('open_session {test}', { timeout: 120_000 }, () => {
         'tests/expected.e2e.ts': EXPECTED,
         'tests/marked-hooks.e2e.ts': MARKED_HOOKS,
         'tests/late-skip.e2e.ts': LATE_SKIP,
+        'tests/late-fixme.e2e.ts': LATE_SKIP.replace('test.skip(true', 'test.fixme(true'),
         'tests/skipped-twice.e2e.ts': SKIPPED_TWICE,
         'tests/soft-then-skip.e2e.ts': SOFT_THEN_SKIP,
         'tests/pause.e2e.ts': PAUSE,
@@ -322,10 +323,17 @@ describe('open_session {test}', { timeout: 120_000 }, () => {
       expect(closed.text).not.toContain('[object Object]');
     });
 
+    it('names test.fixme() when it refuses one from an afterEach at close_session', async () => {
+      const opened = await invoke('open_session', { test: 'tests/late-fixme.e2e.ts' });
+      expect(opened.isError, opened.text).toBe(false);
+      const closed = await invoke('close_session');
+      expect(closed.text).toContain('Cleanup (afterEach): INVALID_ARGUMENT: test.fixme() cannot skip a test from an afterEach hook or a fixture teardown');
+    });
+
     it('lets an afterEach skip after a skipped test close with no cleanup error', async () => {
       const opened = await invoke('open_session', { test: 'tests/skipped-twice.e2e.ts' });
       expect(opened.isError, opened.text).toBe(false);
-      expect(opened.text).toContain('skipped');
+      expect(opened.text).toContain('skipped itself');
       const closed = await invoke('close_session');
       expect(closed.text).toMatch(/^Session \S+ closed/);
       expect(closed.text).not.toContain('Cleanup');

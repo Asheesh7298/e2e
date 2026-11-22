@@ -24,7 +24,7 @@ import {
 } from '@e2e-dev/core/lib/internal/errors';
 import type { ExpectedFailureInfo } from '@e2e-dev/core/lib/internal/expected-failure';
 import { lateTimeoutError } from '@e2e-dev/core/lib/internal/test-timeout';
-import { isRuntimeSkip, lateSkipError, type RuntimeSkip } from '../internal/skip.ts';
+import { isRuntimeSkip, lateSkipError, type CaughtRuntimeSkip } from '../internal/skip.ts';
 import { settleExpectedFailure } from './expected-failure.ts';
 import { withAbort, withTimeout } from '@e2e-dev/core/lib/internal/time';
 import { AttemptTimeout, type AttemptBudget } from '@e2e-dev/core/lib/run/budget';
@@ -249,7 +249,7 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
     const secondaryErrors: SerializedError[] = [];
     let failure: E2EError | undefined;
     let failurePhase: RunPhase = 'beforeAll';
-    let skipped: RuntimeSkip | undefined;
+    let skipped: CaughtRuntimeSkip | undefined;
     let expectedFailure = pair.options.expectedFailure;
     let timedOut = false;
     // As in a run's attempt: confirmation stops at what was verified when the
@@ -299,6 +299,8 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
           owner: 'host',
           testKind: 'test',
           assertionTimeout: config.assertionTimeout,
+          toPass: config.toPass,
+          recordSecondaryError: (error) => { secondaryErrors.push(serialize(error, phase)); },
           budget,
           soft,
           polls,
@@ -475,6 +477,7 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
       if (started === undefined) return lateErrors;
       return takeTurn(async () => {
         const errors: SerializedError[] = [];
+        const retryErrors: SerializedError[] = [];
         strayInTurn = (cause) => errors.push(serialize(cause, 'afterEach'));
         const soft = new SoftFailures();
         // As after a run's body: a soft matcher in a teardown hook finds the collection closed.
@@ -482,7 +485,11 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
         const publication = new AbortController();
         const leaveWorkerFixtures = started.fixtures?.enter();
         try {
-          publishAttempt({ attemptId, owner: 'host', testKind: 'test', assertionTimeout: config.assertionTimeout, budget, soft, polls: new PollScope('the test teardown'), setTimeout: () => { throw lateTimeoutError(); } }, publication.signal);
+          publishAttempt({
+            attemptId, owner: 'host', testKind: 'test', assertionTimeout: config.assertionTimeout, toPass: config.toPass,
+            budget, soft, polls: new PollScope('the test teardown'), setTimeout: () => { throw lateTimeoutError(); },
+            recordSecondaryError: (error) => { retryErrors.push(serialize(error, 'afterEach')); },
+          }, publication.signal);
           steps.phase = 'afterEach';
           // Each teardown gets its own cleanup budget, as in a run's attempt.
           for (const hook of started.teardowns) {
@@ -492,10 +499,11 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
             } catch (cause) {
               // As in a run's attempt: a skip after a skipped test agrees with it.
               if (!isRuntimeSkip(cause)) errors.push(serialize(cause, 'afterEach'));
-              else if (!started.skipped) errors.push(serialize(lateSkipError(), 'afterEach'));
+              else if (!started.skipped) errors.push(serialize(lateSkipError(cause), 'afterEach'));
             }
           }
           await executor.settleAttempt(env.session, attemptId).catch((cause: unknown) => errors.push(serialize(cause, 'afterEach')));
+          publication.abort();
           await executor.realms.leave(started.realm, env.session).catch((cause: unknown) => errors.push(serialize(cause, 'afterAll')));
         } finally {
           leaveWorkerFixtures?.();
@@ -505,7 +513,7 @@ export function createStandaloneTestRun(env: StandaloneTestEnvironment, test: St
           const live = liveRuns.indexOf(self);
           if (live !== -1) liveRuns.splice(live, 1);
         }
-        return [...lateErrors, ...errors];
+        return [...lateErrors, ...errors, ...retryErrors];
       }).catch((cause: unknown) => [...lateErrors, serialize(cause, 'cleanup')]);
     })();
     return tearingDown;
