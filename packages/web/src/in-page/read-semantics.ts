@@ -78,6 +78,8 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     lineText: boolean;
     documentRoot: boolean;
     checkableValue: boolean;
+    /** Whether a range widget reports its value. A locator read does; the tree keeps what the model and the recordings read. */
+    rangeValue: boolean;
   } =
     options.mode.kind === 'tree'
       ? {
@@ -88,6 +90,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
           lineText: true,
           documentRoot: true,
           checkableValue: false,
+          rangeValue: false,
         }
       : {
           attributes: null,
@@ -97,6 +100,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
           lineText: false,
           documentRoot: false,
           checkableValue: true,
+          rangeValue: true,
         };
 
   /**
@@ -634,6 +638,25 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     return contributions.map((text) => text.replace(/\s+/g, ' ').trim()).filter((name) => name !== '');
   };
 
+  const RANGE_ROLES = ['progressbar', 'scrollbar', 'slider', 'spinbutton', 'meter'];
+
+  /**
+   * A range widget's value as a locator read reports it, as Chrome's
+   * accessibility tree does: a blank ARIA attribute is none, and a native
+   * `<progress>` or `<meter>` reads the value its range clamps it to.
+   */
+  const rangeValueOf = (el: Element): string | null => {
+    const filled = (name: string): string | null => {
+      const text = el.getAttribute(name);
+      return text === null || text.trim() === '' ? null : text;
+    };
+    const aria = filled('aria-valuetext') ?? filled('aria-valuenow');
+    if (aria !== null) return aria;
+    if (el instanceof HTMLMeterElement) return String(el.value);
+    if (el instanceof HTMLProgressElement) return el.hasAttribute('value') ? String(el.value) : null;
+    return filled('value');
+  };
+
   /**
    * What an embedded control contributes to a name computed through another
    * element (accname 2C), by the rules Playwright's role selector applies, so
@@ -669,7 +692,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
       if (selected.length === 0 && el instanceof HTMLInputElement) return el.value;
       return selected.map((option) => contentNameOf(option, styleOf(option), walk)).join(' ');
     }
-    if (role === 'progressbar' || role === 'scrollbar' || role === 'slider' || role === 'spinbutton' || role === 'meter') {
+    if (RANGE_ROLES.indexOf(role ?? '') !== -1) {
       if (el.hasAttribute('aria-valuetext')) return el.getAttribute('aria-valuetext') ?? '';
       if (el.hasAttribute('aria-valuenow')) return el.getAttribute('aria-valuenow') ?? '';
       return el.getAttribute('value') ?? '';
@@ -1684,6 +1707,8 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
       const text = (el.textContent ?? '').replace(/﻿/g, '');
       value = text === '' || (text.trim() === '' && rendered === '\n') ? '' : rendered;
       if (projection.textLimit !== null) value = value.slice(0, projection.textLimit);
+    } else if (projection.rangeValue && RANGE_ROLES.indexOf(implicitRole(el) ?? '') !== -1) {
+      value = rangeValueOf(el);
     }
     // A native control's state is the control's, as Playwright reads it: a
     // stale aria-checked on a checkbox or aria-selected on an option says
