@@ -1,6 +1,6 @@
 {
   "name": "@e2e-dev/web",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "Web engine for e2e agentic end-to-end testing, built on Playwright",
   "keywords": [
     "e2e",
@@ -62,8 +62,8 @@
     "playwright-core": "1.65.1"
   },
   "peerDependencies": {
-    "@e2e-dev/core": ">=0.23.2 <1",
-    "e2e": ">=0.23.2 <1"
+    "@e2e-dev/core": ">=0.24.1 <1",
+    "e2e": ">=0.24.1 <1"
   },
   "peerDependenciesMeta": {
     "e2e": {

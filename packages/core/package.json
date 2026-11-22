@@ -1,6 +1,6 @@
 {
   "name": "@e2e-dev/core",
-  "version": "0.0.0",
+  "version": "0.24.0",
   "description": "Drive a browser or a native app from code, with an optional agent: the engines, locators, and agent of e2e, without the test runner",
   "keywords": [
     "e2e",
@@ -75,7 +75,7 @@
   },
   "devDependencies": {
     "@types/node": "26.6.6",
-    "ai": "7.0.177",
+    "ai": "7.0.179",
     "typescript": "7.0.2",
     "vitest": "5.1.1"
   },

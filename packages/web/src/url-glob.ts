@@ -7,7 +7,7 @@
  * these read one.
  */
 
-import { TestError, urlMatches, type TextPattern } from '@e2e-dev/core/engine';
+import { TestError, type TextPattern } from '@e2e-dev/core/engine';
 
 /** Schemes whose URLs Playwright never resolves against a base, so a glob that starts with one stays as written. */
 const UNRESOLVED_GLOB_SCHEMES = ['about:', 'data:', 'chrome:', 'edge:', 'file:'];
@@ -22,15 +22,21 @@ export interface UrlPattern {
 
 /**
  * Compiles a `waitForURL`, `route`, `unroute`, or `waitForResponse` pattern as
- * Playwright's `urlMatches` does: a string is a URL glob resolved against the
- * base URL, the empty string matches any URL, and a RegExp tests the full
- * URL. A glob that nests a `{` or leaves one unmatched is `INVALID_ARGUMENT`
- * here, before anything is matched.
+ * Playwright's `urlMatches` does: a string is a URL glob, the empty string
+ * matches any URL, and a RegExp tests the full URL. `base` is read only for a
+ * string that needs it, so a target with no app URL takes every other pattern.
+ * A glob that nests a `{` or leaves one unmatched is `INVALID_ARGUMENT` here,
+ * before anything is matched.
  */
-export function urlPattern(expected: string | RegExp, baseHref: string): UrlPattern {
-  if (typeof expected !== 'string') return { matches: (url) => urlMatches(url, expected, baseHref), label: String(expected) };
-  if (expected === '') return { matches: () => true, label: expected };
-  const glob = resolveUrlGlob(expected, baseHref);
+export function urlPattern(expected: TextPattern, base: () => string): UrlPattern {
+  if (expected.kind === 'regexp') {
+    return {
+      matches: (url) => new RegExp(expected.source, expected.flags).test(serialized(url)),
+      label: String(new RegExp(expected.source, expected.flags)),
+    };
+  }
+  if (expected.value === '') return { matches: () => true, label: '' };
+  const glob = resolveUrlGlob(expected.value, base);
   const pattern = new RegExp(urlGlobSource(glob));
   return { matches: (url) => pattern.test(serialized(url)), label: glob };
 }
@@ -47,13 +53,6 @@ export function describeExpectedUrl(expected: string | RegExp, baseHref: string)
   } catch {
     return expected;
   }
-}
-
-/** Structural equality for route patterns on the wire, which is how `unroute` finds a route. */
-export function urlPatternsEqual(a: TextPattern, b: TextPattern): boolean {
-  if (a.kind === 'string' && b.kind === 'string') return a.value === b.value;
-  if (a.kind === 'regexp' && b.kind === 'regexp') return a.source === b.source && a.flags === b.flags;
-  return false;
 }
 
 /** Whether a scheme segment is a pattern rather than a scheme: it holds a `*` or a `{`, as Playwright reads it. */
@@ -101,11 +100,15 @@ function literalSource(ch: string): string {
  * origin and stays as written; so does one that starts with an unresolved
  * scheme, or does not parse against the base.
  */
-function resolveUrlGlob(glob: string, baseHref: string): string {
-  if (glob.startsWith('*') || UNRESOLVED_GLOB_SCHEMES.some((scheme) => glob.startsWith(scheme))) return glob;
+function resolveUrlGlob(glob: string, base: () => string): string {
+  if (glob.startsWith('*')) return glob;
+  const baseHref = glob.split('/', 1)[0]!.endsWith(':') || URL.canParse(glob) ? undefined : base();
+  // With nothing to hold back, the URL parser normalizes the whole string, query included, as it does the browser's URL.
+  if (!/[*{}\\]/.test(glob)) return URL.canParse(glob, baseHref) ? new URL(glob, baseHref).href : glob;
+  if (UNRESOLVED_GLOB_SCHEMES.some((scheme) => glob.startsWith(scheme))) return glob;
   // A placeholder prefix neither the glob nor the base holds, so restoring a segment never lands on the user's own text.
   let tag = '$_';
-  while (glob.includes(tag) || baseHref.includes(tag)) tag += '_';
+  while (glob.includes(tag) || baseHref?.includes(tag) === true) tag += '_';
   const originals = new Map<string, string>();
   const hold = (original: string, placeholder: string): string => {
     if (original === '') return '';

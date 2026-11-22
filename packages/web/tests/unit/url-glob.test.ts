@@ -1,12 +1,12 @@
-import { toTextPattern } from '@e2e-dev/core/engine';
+import { TestError, toTextPattern } from '@e2e-dev/core/engine';
 import { describe, expect, it } from 'vitest';
-import { urlPattern, urlPatternsEqual } from '../../src/url-glob.ts';
+import { urlPattern } from '../../src/url-glob.ts';
 
 const BASE = 'http://localhost:3000/';
 
 /** Whether `expected` matches `url`, as `waitForURL`, `route`, `unroute`, and `waitForResponse` read it. */
 function matches(expected: string | RegExp, url: string, base = BASE): boolean {
-  return urlPattern(expected, base).matches(url);
+  return urlPattern(toTextPattern(expected), () => base).matches(url);
 }
 
 describe('URL globs', () => {
@@ -90,25 +90,35 @@ describe('URL globs', () => {
     expect(matches('', 'about:blank')).toBe(true);
   });
 
+  it('normalizes an exact string whole, query included, as the browser reports the URL', () => {
+    expect(matches("/search?q=O'Neil", 'http://localhost:3000/search?q=O%27Neil')).toBe(true);
+    expect(matches("https://x.test/a b?q=O'Neil", 'https://x.test/a%20b?q=O%27Neil')).toBe(true);
+    expect(matches("/search?q=O'Neil", 'http://localhost:3000/search?q=Other')).toBe(false);
+  });
+
+  it('reads the base only for a pattern that needs one, so a target with no app URL takes the rest', () => {
+    const noBase = (): string => {
+      throw new TestError('APP_URL_REQUIRED', 'no app url');
+    };
+    for (const pattern of ['https://x.test/a', 'https://*.x.test/**', 'http{,s}://x.test/a', '**/a', 'about:blank', '', /a$/]) {
+      expect(() => urlPattern(toTextPattern(pattern), noBase), String(pattern)).not.toThrow();
+    }
+    expect(urlPattern(toTextPattern('https://x.test/a'), noBase).matches('https://x.test/a')).toBe(true);
+    for (const pattern of ['/a', 'a/*']) {
+      expect(() => urlPattern(toTextPattern(pattern), noBase), pattern).toThrow(expect.objectContaining({ code: 'APP_URL_REQUIRED' }));
+    }
+  });
+
   it('labels a string resolved against the base, and a RegExp as written', () => {
-    expect(urlPattern('**/checkout', BASE).label).toBe('**/checkout');
-    expect(urlPattern('/orders', BASE).label).toBe('http://localhost:3000/orders');
-    expect(urlPattern('/orders/*', BASE).label).toBe('http://localhost:3000/orders/*');
-    expect(urlPattern(/orders/, BASE).label).toBe('/orders/');
+    expect(urlPattern(toTextPattern('**/checkout'), () => BASE).label).toBe('**/checkout');
+    expect(urlPattern(toTextPattern('/orders'), () => BASE).label).toBe('http://localhost:3000/orders');
+    expect(urlPattern(toTextPattern('/orders/*'), () => BASE).label).toBe('http://localhost:3000/orders/*');
+    expect(urlPattern(toTextPattern(/orders/), () => BASE).label).toBe('/orders/');
   });
 
   it('refuses a nested or unbalanced { before anything is matched', () => {
     for (const glob of ['**/{a,{b}}', '**/{a', '**/a}']) {
-      expect(() => urlPattern(glob, BASE), glob).toThrow(expect.objectContaining({ code: 'INVALID_ARGUMENT' }));
+      expect(() => urlPattern(toTextPattern(glob), () => BASE), glob).toThrow(expect.objectContaining({ code: 'INVALID_ARGUMENT' }));
     }
-  });
-});
-
-describe('urlPatternsEqual', () => {
-  it('compares string and regexp forms structurally, which is how unroute finds a route', () => {
-    expect(urlPatternsEqual(toTextPattern('**/a'), toTextPattern('**/a'))).toBe(true);
-    expect(urlPatternsEqual(toTextPattern(/a/i), toTextPattern(/a/i))).toBe(true);
-    expect(urlPatternsEqual(toTextPattern(/a/i), toTextPattern(/a/g))).toBe(false);
-    expect(urlPatternsEqual(toTextPattern('a'), toTextPattern(/a/))).toBe(false);
   });
 });

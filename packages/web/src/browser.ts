@@ -35,7 +35,6 @@ import {
   type FixtureOperations,
   type LocatorExpression,
   type OperationContext,
-  type TextPattern,
 } from '@e2e-dev/core/engine';
 import { classifyInputError } from './actions.ts';
 import type { AttemptTab } from './attempt-session.ts';
@@ -47,7 +46,14 @@ import { initScriptLabel, testInitScriptSource } from './init-scripts.ts';
 import { MEDIA_KEYS, mediaLabel, mediaProblem, type WebMedia } from './media.ts';
 import { lowercaseNames } from './protected-app.ts';
 import { parseContinue, parseFulfill, requireNoArguments } from './route-options.ts';
-import { describeExpectedUrl, urlPattern, urlPatternsEqual } from './url-glob.ts';
+import {
+  patternLabel,
+  routeMethodMatches,
+  routePatternsEqual,
+  toRoutePattern,
+  type NormalizedRoutePattern,
+} from './route-pattern.ts';
+import { describeExpectedUrl, urlPattern } from './url-glob.ts';
 import type { PlaywrightSurface } from './surface.ts';
 
 /**
@@ -98,6 +104,18 @@ export interface WebRoute {
   fallback(): Promise<void>;
   /** Aborts the intercepted request once. */
   abort(): Promise<void>;
+}
+
+/** A URL pattern narrowed to one HTTP method. */
+export interface RouteMatcher {
+  /** The HTTP method to match, case-insensitive: `'POST'` and `'post'` are the same. */
+  readonly method: string;
+  /**
+   * The URL pattern: a string using the same grammar as a plain `route`
+   * pattern, or a `RegExp`. `route` and `waitForResponse` match requests
+   * against it; `unroute` compares it structurally.
+   */
+  readonly url: string | RegExp;
 }
 
 export interface WebResponse {
@@ -288,18 +306,22 @@ export interface Browser extends Expectable<BrowserExpectation> {
   addInitScript(script: string | { path: string } | (() => unknown)): Promise<void>;
   /** Adds an init script function called with one JSON argument. */
   addInitScript<Arg extends JsonValue>(script: (arg: Arg) => unknown, arg: Arg): Promise<void>;
-  /** Adds an attempt-scoped network route. */
+  /** Adds an attempt-scoped network route, optionally narrowed to one HTTP method. */
   route(
-    pattern: string | RegExp,
+    pattern: string | RegExp | RouteMatcher,
     handler: (route: WebRoute) => void | Promise<void>,
   ): Promise<void>;
-  /** Removes matching attempt-scoped routes. */
-  unroute(pattern: string | RegExp): Promise<void>;
+  /**
+   * Removes the routes registered with the same pattern: the same string or
+   * `RegExp` source and flags, and the same method for a `{ method, url }`
+   * pattern. It does not URL-match registered routes.
+   */
+  unroute(pattern: string | RegExp | RouteMatcher): Promise<void>;
   /** Removes all routes registered by this browser fixture, preserving the configured headers. */
   unrouteAll(): Promise<void>;
-  /** Waits for a matching response. */
+  /** Waits for a matching response, optionally narrowed to one HTTP method. */
   waitForResponse(
-    pattern: string | RegExp,
+    pattern: string | RegExp | RouteMatcher,
     options?: { timeout?: number },
   ): Promise<WebResponse>;
   /** Returns cookies visible to the current context. */
@@ -371,7 +393,7 @@ export interface Browser extends Expectable<BrowserExpectation> {
 }
 
 interface StoredRoute {
-  readonly pattern: TextPattern;
+  readonly pattern: NormalizedRoutePattern;
   readonly pwHandler: (route: Route) => Promise<void>;
   readonly predicate: (url: URL) => boolean;
 }
@@ -646,8 +668,8 @@ export function createBrowserFixture(surface: PlaywrightSurface, context: Engine
       await surface.guard(context.operation(), 'addInitScript', () => surface.addInitScript(source));
     },
     route(pattern, handler) {
-      const wirePattern = toTextPattern(pattern);
-      const { matches } = urlPattern(pattern, baseHref());
+      const wirePattern = toRoutePattern('browser.route', pattern);
+      const { matches } = urlPattern(wirePattern.url, baseHref);
       const predicate = (url: URL) => matches(url.href);
       // Playwright never surfaces a throwing route handler to the test, so a
       // contract violation (no decision, two decisions) or a failing handler
@@ -752,6 +774,15 @@ export function createBrowserFixture(surface: PlaywrightSurface, context: Engine
       // Tracked so the attempt end waits for a handler still running and
       // collects what it latched.
       const pwHandler = (route: Route): Promise<void> => {
+        // A route narrowed to another method steps aside for the routes
+        // registered before it, exactly as if its URL predicate had not
+        // matched: the request still reaches an older route, or the network.
+        if (!routeMethodMatches(wirePattern, route.request().method())) {
+          // Nothing awaits a route handler; a fallback that fails because the
+          // page closed under the request is dropped, as the configured
+          // headers route drops its own.
+          return route.fallback().catch(() => undefined);
+        }
         const work = handleRoute(route);
         latch.track('route', work);
         return work;
@@ -762,21 +793,21 @@ export function createBrowserFixture(surface: PlaywrightSurface, context: Engine
       });
     },
     unroute(pattern) {
-      const wirePattern = toTextPattern(pattern);
+      const wirePattern = toRoutePattern('browser.unroute', pattern);
       return surface.guard(context.operation(), 'unroute', () =>
-        removeRoutes(stored => urlPatternsEqual(stored.pattern, wirePattern)));
+        removeRoutes(stored => routePatternsEqual(stored.pattern, wirePattern)));
     },
     unrouteAll() {
       return surface.guard(context.operation(), 'unrouteAll', () => removeRoutes(() => true));
     },
     waitForResponse(pattern, options) {
-      toTextPattern(pattern);
-      const { matches } = urlPattern(pattern, baseHref());
+      const wirePattern = toRoutePattern('browser.waitForResponse', pattern);
+      const { matches } = urlPattern(wirePattern.url, baseHref);
       const operation = context.operation(stepTimeout(options?.timeout, 'browser.waitForResponse'));
       return surface.guard(operation, 'waitForResponse', async (currentOperation) => {
         const page = await surface.ensurePage();
         const response = await page.waitForResponse(
-          (candidate) => matches(candidate.url()),
+          (candidate) => matches(candidate.url()) && routeMethodMatches(wirePattern, candidate.request().method()),
           { timeout: currentOperation.timeoutMs },
         );
         // Started now, while the browser still holds the body, and awaited
@@ -1007,7 +1038,7 @@ async function pollBrowser(
  * so the matcher keeps its exact comparison.
  */
 function waitForUrl(deps: ExpectationDeps, expected: string | RegExp, timeout: number | undefined): Promise<void> {
-  const { matches, label } = urlPattern(expected, deps.baseHref());
+  const { matches, label } = urlPattern(toTextPattern(expected), () => deps.baseHref());
   const call = { api: 'browser.waitForURL', name: 'browser.waitForURL', negated: false };
   return pollBrowser(deps, call, `URL ${label}`, async (deadline) => {
     const url = await deps.currentUrl(deadline);
@@ -1111,11 +1142,6 @@ function requireSelector(method: string, selector: unknown): string {
     throw new TestError('INVALID_LOCATOR', `${method}() requires a nonempty selector`);
   }
   return selector;
-}
-
-/** A URL pattern as steps and errors name it: a string quoted, a RegExp as its literal. */
-function patternLabel(pattern: string | RegExp): string {
-  return typeof pattern === 'string' ? JSON.stringify(pattern) : String(pattern);
 }
 
 /**
