@@ -53,6 +53,7 @@ export { isRefusedLinkScheme, sameSite, siteOf, urlMatches } from '../internal/u
 export { obj, type WithoutUndefined } from '../internal/objects.ts';
 import type { AppPermissionState, Expectable, Locator, Screen, Secret } from '../types.ts';
 import type {
+  EngineHostIdentity,
   EngineSpiVersion,
   LocatorAction,
   LocatorActionKind,
@@ -74,6 +75,7 @@ export {
   EngineError,
   KEY_MODIFIERS,
   KEY_NAMES,
+  KNOWN_LOCATOR_ACTION_KINDS,
   LOCATOR_ACTION_KINDS,
   OBSERVED_NAME_LIMIT,
   OBSERVED_TEXT_LIMIT,
@@ -419,7 +421,7 @@ export interface EnginePrepareResult {
  * Facts handed to `prepare`, once per run and target in the runner process,
  * before any worker exists.
  */
-export interface EnginePrepareInfo {
+export interface EnginePrepareInfo extends EngineHostIdentity {
   /** The run id. */
   readonly runId: string;
   /** The target being prepared. */
@@ -462,7 +464,7 @@ export interface EnginePrepareInfo {
 }
 
 /** Handed to `finish`, once per run and target after the last worker is gone, with the cleanup budget of one hook. */
-export interface EngineFinishInfo extends EngineCleanupContext {
+export interface EngineFinishInfo extends EngineCleanupContext, EngineHostIdentity {
   /** The run id. */
   readonly runId: string;
   /** The target being finished. */
@@ -506,7 +508,7 @@ export interface EngineDoctorCheck {
 }
 
 /** Run identity and harness-resolved facts handed to `init`, once per worker before the first step. */
-export interface EngineInitInfo {
+export interface EngineInitInfo extends EngineHostIdentity {
   /** The run id. */
   readonly runId: string;
   /** The target this worker serves. */
@@ -747,7 +749,14 @@ export interface EngineSnapshot {
   readonly treeUnavailable?: true;
   /** Masked pixels, when requested and producible; omitted otherwise. */
   readonly pixels?: ObservationPixels;
-  /** Regions masked in `pixels`; the harness checks it covers every secure node. */
+  /**
+   * Regions masked in the screenshot; the harness checks it covers every secure
+   * node. An engine asked for pixels (`pixels: true`) that cannot mask every
+   * secure node on screen omits `pixels` and still reports the regions it
+   * could mask, fewer than the secure nodes, so `toHaveScreenshot` fails with
+   * `POLICY_DENIED` and the agent reads `MASKING_UNPROVEN`, not a missing
+   * screenshot.
+   */
   readonly maskedRegionCount?: number;
 }
 
@@ -868,6 +877,11 @@ export interface Engine {
    * capability names; `requires: ['<name>']` gates at selection.
    */
   readonly fixtures?: Readonly<Record<string, EngineFixtureFactory>>;
+  /**
+   * How long the state behind this engine's `fixtures`, `app`, and `screen`
+   * lives; see `EngineIsolation`. Defaults to `attempt`.
+   */
+  readonly isolation?: EngineIsolation;
   /** capability: state - opaque snapshot capture/restore for session reuse. */
   readonly state?: EngineStateCapability;
   /** capability: artifacts - screenshots under the attempt directory, and videos there or at a provider. */
@@ -950,6 +964,17 @@ export interface Engine {
    */
   dispose?(context: EngineDisposeContext): Promise<void>;
 }
+
+/**
+ * What one attempt on an engine leaves for the next. `attempt`: nothing,
+ * `startAttempt` gives each attempt a fresh surface (a browser context), so
+ * the engine's fixtures, `app`, and `screen` are test fixtures, and a suite
+ * hook cannot use them. `worker`: what an attempt does stays (a device keeps
+ * permissions, keychain, and installed apps), so they are worker fixtures,
+ * which `beforeAll`, `afterAll`, and worker-scoped `test.extend()` fixtures
+ * see; a suite hook runs in a short attempt of its own for them.
+ */
+export type EngineIsolation = 'attempt' | 'worker';
 
 /**
  * A validated engine: branded, frozen, capabilities computed. `Fixtures` names

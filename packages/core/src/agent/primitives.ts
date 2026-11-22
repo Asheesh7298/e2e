@@ -17,10 +17,12 @@ import { KEY_MODIFIERS, type KeyModifier } from '../engine/contract.ts';
 import type { ViewportPoint } from '../engine/surface.ts';
 import { codedMessage, hasCause, TestError } from '../internal/errors.ts';
 import { VIEWPORT_LIMITS } from '../internal/geometry.ts';
+import { isPlainObject } from '../internal/options.ts';
 import type { AgentErrorCode } from '../types.ts';
 import { READ_ONLY_GRAMMAR } from './action-names.ts';
 import { isRuntimeHardStop, BLOCKABLE_CODES, type StepExecutorContext, type StepVerdict } from './executor.ts';
 import { cacheTokenFields, readCost } from './model/sdk.ts';
+import { markWaitingTool } from './loop-guards.ts';
 import { OperationQueue } from './operation-queue.ts';
 import { imagePointToViewport, POINT_VERBS } from './point-tap.ts';
 import { SAMPLE_NAMES, SAMPLE_PREFIX } from './sample-files.ts';
@@ -76,15 +78,14 @@ const MODEL_BLOCKABLE_CODES = MODEL_ERROR_CODES.filter((code) => BLOCKABLE_CODES
 /** The verdict rules the built-in agent appends to its instructions. */
 export const VERDICT_RULES = `Verdict rules:
 - When the step's goal is achieved, or you are certain it cannot be, call complete_step exactly once.
-- Conclude from the newest screen and changes already in this conversation; never guess success. Observe again before concluding only when the newest result shows work still in progress (a spinner, "Saving…", a pending state).
+- Conclude from the newest screen and changes already in this conversation; never guess success. Observe again before concluding only when the newest result shows work still in progress (a spinner, "Saving…", a pending state), or when a press that commits something (a save, a submit, a delete) showed no confirmation.
 - "passed" means the application behaved as the step required. "failed" means it did not. "blocked" means credentials, the environment, or test setup prevented a product verdict — blocked says nothing about the product and requires an errorCode.`;
 
 /**
- * A plain AI SDK function tool with its input typed from the schema — what
- * `tool()` from `ai` does, without loading `ai` to do it. The schema is
- * closed here, once for every tool: a field it does not declare fails
- * validation, and the SDK hands the failure back to the model as the call's
- * result instead of stripping the field and running the call without it.
+ * A plain AI SDK function tool with its input typed from the schema; a tool
+ * that declares fields rejects any key it does not declare. A tool with no
+ * fields reads a plain object as `{}` first, because some models pad a
+ * no-input call and resend the refusal until the step budget ends.
  */
 function schemaTool<Schema extends z.ZodObject, Output = string>(definition: {
   readonly description: string;
@@ -93,7 +94,11 @@ function schemaTool<Schema extends z.ZodObject, Output = string>(definition: {
   /** Maps a structured result onto model content; a string result needs none. */
   readonly toModelOutput?: (options: { readonly output: Output }) => ModelOutput;
 }): Tool {
-  return { ...definition, inputSchema: definition.inputSchema.strict() } as Tool;
+  const strict = definition.inputSchema.strict();
+  const inputSchema = Object.keys(definition.inputSchema.shape).length === 0
+    ? z.preprocess((value) => (isPlainObject(value) ? {} : value), strict)
+    : strict;
+  return { ...definition, inputSchema } as Tool;
 }
 
 /** The model-facing shape of a tool result: text, or text with a screenshot attached. */
@@ -358,12 +363,12 @@ export function grammarTools(
     .describe('Node id from any screen in this conversation that is still present, e.g. "n42"');
 
   const tools: ToolSet = {
-    observe: screenTool({
+    observe: markWaitingTool(screenTool({
       description:
-        'Look at the screen again and get what changed since the screen you last received. Action results already include their changes, so call this only after waiting for something in progress, never right after an action.',
+        'Look at the screen again and get what changed since the screen you last received. Action results already include their changes, so call this only after waiting for something in progress, or to check whether a press that commits something (a save, a submit, a delete) went through; never to re-read another action\'s result.',
       inputSchema: z.object({}),
       execute: () => inOrder(() => guard(() => present('Observed.', { expectChange: false, keyboardNote: false }))),
-    }),
+    })),
   };
   const modifiers = z
     .array(z.enum(KEY_MODIFIERS))
@@ -640,7 +645,8 @@ export function grammarTools(
   const save = options.saveScreenshot;
   tools['screenshot'] =
     save === undefined
-      ? screenTool({ description, inputSchema: z.object({}), execute: () => inOrder(() => guard(look)) })
+      ? // Only looks, like observe: waiting on a save by screenshots is a wait too. The variant that saves a file is not marked.
+        markWaitingTool(screenTool({ description, inputSchema: z.object({}), execute: () => inOrder(() => guard(look)) }))
       : screenTool({
           description: `${description} With path, also saves the masked full-resolution screenshot as a PNG file and returns its absolute path.`,
           inputSchema: z.object({

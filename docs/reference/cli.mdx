@@ -58,8 +58,8 @@ $ npx e2e --version
   logo in block characters. Piped output and
   narrower terminals get the text alone.
 - When a newer `e2e` is on npm, a command run on a terminal ends with the
-  version and the [`e2e upgrade`](#e2e-upgrade) command for the project's
-  package manager. The
+  version, the [`e2e upgrade`](#e2e-upgrade) command for the project's
+  package manager, and a link to star e2e on GitHub. The
   registry is checked once a day. Nothing prints in CI, when stderr is not a
   terminal, for `e2e mcp` and `e2e upgrade`, or with
   `E2E_UPDATE_CHECK_DISABLED=1`, `NO_UPDATE_NOTIFIER=1`,
@@ -80,6 +80,7 @@ $ npx e2e --version
 | [`e2e list`](#e2e-list) | Prints the tests a run selects |
 | [`e2e doctor`](#e2e-doctor) | Checks that a run can start |
 | [`e2e cache`](#e2e-cache) | Inspects or clears the replay cache |
+| [`e2e report`](#e2e-report) | Opens the HTML report in a browser |
 | [`e2e upgrade`](#e2e-upgrade) | Upgrades e2e and its packages |
 | [`e2e feedback`](#e2e-feedback) | Sends feedback to the e2e team |
 | [`e2e telemetry`](#e2e-telemetry) | Shows or switches usage telemetry |
@@ -141,6 +142,9 @@ On a terminal 52 or more columns wide, the wizard opens with the e2e logo,
 shading in from ░ to █, top rows first, in about half a second. With
 `--yes`, in CI, on a dumb terminal, or on a terminal under 7 rows, it prints
 at once. Piped output and narrower terminals never show it.
+
+On a terminal outside CI, a finished scaffold ends with a link to star e2e on
+GitHub, unless init goes straight on to the command it was started for.
 
 For a new project, the wizard asks for:
 
@@ -342,7 +346,7 @@ npx e2e login openai --device     # sign in with a device code
 npx e2e login github-copilot --from-gh  # use your GitHub CLI login
 npx e2e login github-copilot --client-id <id> [--enterprise-url <host>]
 npx e2e login opencode-console    # OpenCode Console, device code
-npx e2e login spacexai            # SuperGrok, device code
+npx e2e login spacexsi            # SuperGrok, device code
 npx e2e login                     # choose a provider
 ```
 
@@ -352,7 +356,7 @@ pnpm exec e2e login openai --device     # sign in with a device code
 pnpm exec e2e login github-copilot --from-gh  # use your GitHub CLI login
 pnpm exec e2e login github-copilot --client-id <id> [--enterprise-url <host>]
 pnpm exec e2e login opencode-console    # OpenCode Console, device code
-pnpm exec e2e login spacexai            # SuperGrok, device code
+pnpm exec e2e login spacexsi            # SuperGrok, device code
 pnpm exec e2e login                     # choose a provider
 ```
 
@@ -362,14 +366,14 @@ bunx e2e login openai --device     # sign in with a device code
 bunx e2e login github-copilot --from-gh  # use your GitHub CLI login
 bunx e2e login github-copilot --client-id <id> [--enterprise-url <host>]
 bunx e2e login opencode-console    # OpenCode Console, device code
-bunx e2e login spacexai            # SuperGrok, device code
+bunx e2e login spacexsi            # SuperGrok, device code
 bunx e2e login                     # choose a provider
 ```
 </CodeGroup>
 
 | Option | Description |
 | --- | --- |
-| `[provider]` | The subscription: `openai`, `github-copilot`, `opencode-console`, or `spacexai`. Default: a picker. |
+| `[provider]` | The subscription: `openai`, `github-copilot`, `opencode-console`, or `spacexsi`. `spacexai` and `grok` are aliases of `spacexsi`, here and in `logout` and `models`. Default: a picker. |
 | `--device` | ChatGPT: shows a code to enter on another device instead of opening a browser. |
 | `--from-gh` | GitHub Copilot: reuses the signed-in GitHub CLI's token. |
 | `--client-id <id>` | GitHub Copilot: the client id of your GitHub OAuth App, with the device flow enabled. |
@@ -404,7 +408,7 @@ bunx e2e logout openai    # forget one
 
 | Option | Description |
 | --- | --- |
-| `[provider]` | The login to forget: `openai`, `github-copilot`, `opencode-console`, or `spacexai`. Default: a picker over the stored logins. |
+| `[provider]` | The login to forget: `openai`, `github-copilot`, `opencode-console`, or `spacexsi`. Default: a picker over the stored logins. |
 
 #### `e2e models`
 
@@ -430,7 +434,7 @@ bunx e2e models openai    # one provider
 
 | Option | Description |
 | --- | --- |
-| `[provider]` | `openai`, `github-copilot`, `opencode-console`, or `spacexai`. Default: every stored login, plus OpenCode Console when only `OPENCODE_API_KEY` is set. |
+| `[provider]` | `openai`, `github-copilot`, `opencode-console`, or `spacexsi`. Default: every stored login, plus OpenCode Console when only `OPENCODE_API_KEY` is set. |
 
 Each line holds:
 
@@ -652,13 +656,13 @@ Test files, directories, or globs relative to the project root:
 | `--strict-cache` | Turns on `cache.strict` for this run. A step whose recording exists but no longer replays fails with `REPLAY_STALE` instead of handing off to the agent. Retries replay too, and the run never writes the cache. See [Fail on a stale recording](/cache#fail-on-a-stale-recording). |
 | `-u`, `--update-snapshots` | Writes each stored screenshot [`toHaveScreenshot`](/reference/expect#screenshot-matchers) finds missing or different, and passes the matcher. Without it, a missing one is written and fails; in CI it is only attached to the results. |
 | `-w`, `--watch` | Runs, then reruns when a test file or the config changes, or on a key. See [Watch mode](#watch-mode). |
-| `--step` | Runs the first step, then holds each later step until a key at its prompt: Enter runs it, `n` runs the rest of the test, `a` the rest of the run, `h` lists the keys, `q` stops with exit 130. Held time counts toward no timeout. Without a terminal, the run goes on in the background and each command returns at the next held step with its screen: `--step next` runs it, `--step rest` runs the rest, `--step stop` ends the run. Runs one worker; refused in CI, with `--watch`, `--workers` above 1, and the json reporter (exit 2). See [Step through a test](/debugging#step-through-a-test) and [without a terminal](/debugging#step-through-a-test-without-a-terminal). |
+| `--step` | Runs the first step, then holds each later step until a key at its prompt: Enter runs it, `s` shows the screen, `l` the app log, `n` runs the rest of the test, `a` the rest of the run, `h` lists the keys, `q` stops with exit 130. Held time counts toward no timeout. Without a terminal, the run goes on in the background and each command returns at the next held step with its screen: `--step next` runs it, `--step rest` runs the rest, `--step stop` ends the run. `--step next`, `rest`, and `stop` also resume or stop a test at a [`screen.pause()`](/debugging#pause-a-test). Runs one worker; refused in CI, with `--watch`, `--workers` above 1, and the json reporter (exit 2). See [Step through a test](/debugging#step-through-a-test) and [without a terminal](/debugging#step-through-a-test-without-a-terminal). |
 
 **Output**
 
 | Option | Description |
 | --- | --- |
-| `--reporter <ids>` | Replaces the built-in IDs in `config.reporters`, comma-separated: `list`, `json`, `junit`, `markdown`. Default: the config. `json` with `list` is `INVALID_CONFIG`. [Reporter objects](/reference/reporters) in the config keep running. |
+| `--reporter <ids>` | Replaces the built-in reporters in `config.reporters`, comma-separated: `list`, `dot`, `json`, `junit`, `markdown`. Default: the config. A built-in the config configured, such as `junit({ outputFile })`, keeps its options. Beside `json`, `list` and `dot` print to stderr. `dot` with `list` is `INVALID_CONFIG`. [Other reporters](/reference/reporters) in the config keep running. |
 | `--output <dir>` | The results directory for this run, over the config's [`output`](/reference/config#output): the report, the reporter files, the AI trace, `results/`, and `sessions/`. Default: the config, else `.e2e`. Resolved from the project root, and must be a directory inside it, not the root itself; that and the other directories the run cannot own (listed there) are `INVALID_CONFIG`. `results/` is cleared once the tests start; a `--last-failed` rerun keeps what the previous report names. |
 | `--cache-dir <dir>` | The replay cache directory for this run, over [`E2E_CACHE_DIR`](/reference/environment#replay-cache) and [`cache.dir`](/reference/config#cache). Default: `E2E_CACHE_DIR`, else `cache.dir`, else `.e2e/cache`. Resolved from the project root; `~` or a leading `~/` is the home directory. The cache mode stays as configured. With a custom `cache.store` it is `INVALID_CONFIG`. |
 | `--timings <file>` | The [timings history](/ci#cache-the-timings-history) to update when the run ends, over `<output>/timings.json`. With more than one worker, files with no recorded time start first, then the rest longest first. Resolved from the project root. A missing or invalid file is no history, never an error. |
@@ -760,6 +764,7 @@ cache, `-` when it reports no split. The report records the same per step
 | Reporter | Writes |
 | --- | --- |
 | `list` | Terminal progress, failures with code frames, and a run summary. On a TTY, live progress shows the current agent step, model turns, tool calls, and reasoning excerpts; when stdout is not a terminal (piped, redirected, most CI), each test prints as it finishes. The output ends with each failed test's file and line, first error line, and trace page when one was written. Untrusted fields are capped at 8 KiB and stripped of control characters. |
+| `dot` | One mark per selected test result, followed by failure details and a run summary. See [`dot`](/reference/reporters#dot) for marks, colors, and wrapping. With `dot,json`, all terminal output goes to stderr. |
 | `json` | The report document to stdout, and nothing else there, so `e2e run --reporter json \| jq` works. It is the `<output>/report.json` document, described by `schema/report-v1.schema.json` in the package. The shape changes only with the `schemaVersion` field (`report-1` today). |
 | `junit` | `junit.xml` beside the report. One `<testsuite>` per file, one `<testcase>` per test-target pair named `title > path [target]`. A test-class error is a `<failure>`, any other an `<error>`, a skip a `<skipped>` with its reason. An interrupted test reached no verdict, so it is a `<skipped>` whose message starts `interrupted:`. A test a [test filter](/filters) left out is a `<skipped>` whose message starts `left out by filter <name>:`; other tests the run did not select are not listed. Run-level errors form a `run` suite. |
 | `markdown` | `summary.md` beside the report: counts, cost, errors, and failure details, each naming its trace page when one was kept. Exploration runs show findings. [`@e2e-dev/github`](/github) uses this summary for pull request comments. |
@@ -779,7 +784,9 @@ an interrupt. Its errors are on the terminal and in the exit code. A
 `junit.xml` or `summary.md` that could not be written is a line on stderr,
 never a run error.
 
-The `list` reporter prints run errors under `Run Errors`. Without `list`,
+The `list` and `dot` reporters print run errors under `Run Errors`. Without
+either, or another reporter that prints to the terminal with
+[`onOutput`](/reference/reporters#onoutput),
 each run error prints on stderr as `CODE: message`, with `json` too.
 
 `run.summary` in the report counts the results:
@@ -794,9 +801,9 @@ each run error prints on stderr as `CODE: message`, with `json` too.
   `MODEL_UNAVAILABLE`), never a failure.
 - `executed` is the selected results that ran at least one attempt. A
   serial member ran one when one of its group's attempts reached it: its body
-  started, including a body that called `test.skip()`, or the attempt failed
-  on it, as at launch. A member that a failed hook, a failed predecessor, or
-  the run's interrupt kept from starting did not.
+  started, including a body that called `test.skip()` or `test.fixme()`, or
+  the attempt failed on it, as at launch. A member that a failed hook, a
+  failed predecessor, or the run's interrupt kept from starting did not.
 
 With `--ai-trace`, the run also writes `<output>/ai-trace.json`, an AI SDK
 devtools database. It holds one entry per model round trip: the exact prompt,
@@ -1226,6 +1233,8 @@ Updated the agent skill in .agents/skills/e2e/ (12 files)
 
 - **The project.** The nearest `package.json` from the working directory up
   that lists `e2e`.
+- **On a terminal.** After a new `e2e` installs, the e2e logo and a link to
+  star e2e on GitHub follow. Not in CI or piped output.
 - **Sibling versions.** Each `@e2e-dev/*` package gets its release under the
   same dist-tag (`latest` for a named version), when that release's peer
   ranges accept the new versions. Otherwise it gets its newest release that
@@ -1399,6 +1408,40 @@ E2E_TELEMETRY_DEBUG=1 bunx e2e run
   `e2e telemetry`, prints a notice one time. In CI nothing is printed and no
   file is written.
 
+#### `e2e report`
+
+Opens the HTML report written by [`htmlReporter()`](/reference/reporters#htmlreporter)
+in the default browser (`<output>/report.html` by default). Exits `2` when no
+readable report file is found or both `[path]` and `--output` are passed.
+
+<CodeGroup>
+```bash npm
+npx e2e report
+npx e2e report out/custom.html
+npx e2e report --output out
+```
+
+```bash pnpm
+pnpm exec e2e report
+pnpm exec e2e report out/custom.html
+pnpm exec e2e report --output out
+```
+
+```bash bun
+bunx e2e report
+bunx e2e report out/custom.html
+bunx e2e report --output out
+```
+</CodeGroup>
+
+| Argument or flag | Meaning |
+| --- | --- |
+| `[path]` | HTML file or directory holding `report.html` (default: `<output>/report.html`; mutually exclusive with `--output`) |
+| `--config <path>` | Config file (default: the nearest `e2e.config.ts`, `.mts`, `.js`, or `.mjs`) |
+| `--output <dir>` | Results directory containing `report.html` (default: `output` in the config, else `.e2e`) |
+
+- If [`htmlReporter({ outputFile })`](/reference/reporters#htmlreporter) writes the page elsewhere, pass that path as `[path]`: `e2e report` checks `<output>/report.html` only.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -1408,7 +1451,7 @@ E2E_TELEMETRY_DEBUG=1 bunx e2e run
 | 2 | CLI, config, collection, dependency, credential, model-config, or policy error |
 | 3 | Engine, app process, model provider, artifact, or cleanup infrastructure failure; `e2e feedback` that could not be delivered; `e2e upgrade` that could not reach the registry |
 | 4 | Internal runner invariant or unhandled runner error |
-| 130 | Interrupted by a user or CI signal, by `q` at the `--step` prompt, or by `e2e run --step stop` |
+| 130 | Interrupted by a user or CI signal, by `q` at a `--step` or `screen.pause()` prompt, or by `e2e run --step stop` |
 
 - Precedence for a mixed run is `130 > 4 > 3 > 2 > 1 > 0`. The report keeps
   every individual result; precedence affects only the process exit code.
@@ -1431,7 +1474,8 @@ On Bun 1.4.3 or newer, the CLI runs without Node.js. When Node.js is
 installed, `bunx e2e` and `bun run` follow the CLI's `node` shebang and run it
 on Node.js. `bunx --bun e2e` and `bun --bun run` run it on Bun. Without
 Node.js, all of them run it on Bun. The web engine runs on Bun.
-`@e2e-dev/mobile` and the integrations are not verified on Bun yet.
+`@e2e-dev/mobile`, `@e2e-dev/desktop`, and the integrations are not verified
+on Bun yet.
 
 Bun compiles the config and test files with its own TypeScript support. Where
 that differs from Node.js:

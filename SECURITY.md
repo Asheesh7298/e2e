@@ -40,12 +40,14 @@ will not protect you from your own dependencies.
 Text, accessibility trees, and pixels from the app under test are quoted to
 the model as untrusted; the runner, not the model, decides what a tool call
 may do. Every model tool call is parsed into a closed schema and authorized
-right before dispatch. Unknown tools or undeclared fields never run; the
-model reads the refusal as the call's result and can try again. A node id
-that cannot be resolved on the current screen fails with
-`LOCATOR_NOT_FOUND`. Policy refusals, such as a denied destination or a
-forbidden secret fill, fail with `POLICY_DENIED`. Model text is never
-evaluated as code, selectors, shell, or config.
+right before dispatch. An unknown tool never runs, and neither does an
+undeclared field on a built-in tool that declares fields. A built-in tool
+with no fields drops extra keys and runs. A project tool keeps the schema
+given to `defineTool`. The model reads a refusal as the call's result
+and can try again. A node id that cannot be resolved on the current
+screen fails with `LOCATOR_NOT_FOUND`. Policy refusals, such as a denied
+destination or a forbidden secret fill, fail with `POLICY_DENIED`. Model
+text is never evaluated as code, selectors, shell, or config.
 
 Secrets follow from that split. A `Secret` value never reaches model input,
 digests, logs, reports, or artifacts as text. A secret fill is authorized by the runner from
@@ -75,6 +77,11 @@ leaves the app's domain. Treat a target whose app can send the agent
 elsewhere as one the agent may follow there, with the secrets the step was
 given. If a threat model ever calls for an origin allowlist again, it comes
 back as an opt-in.
+
+On macOS and Windows a locally launched Chromium runs with its OS sandbox on,
+which helps contain a renderer exploit on a page the agent reaches. On Linux,
+where root and most containers cannot start it, `web({ chromiumSandbox: true })`
+turns it on.
 
 Child frames off the site of the target's `url`, its registrable domain, are
 dropped from observations. The browser engine's `headers` and `basicAuth`
