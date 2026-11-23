@@ -17,6 +17,8 @@ const PAGE = [
   '<div role="region "><header aria-label="Region spaced header">Spaced</header></div>',
   '<div role="doc-chapter article"><footer aria-label="Chapter footer">Chapter</footer></div>',
   '<div role="doc-foo article"><footer aria-label="Unknown footer">Unknown</footer></div>',
+  '<ul><nav role="listitem"><header aria-label="In list header">Item</header></nav></ul>',
+  '<div role="none list"><nav role="listitem"><header aria-label="Not in list header">Item</header></nav></div>',
   '<h3 aria-disabled="TrUe">Archived</h3>',
   '<h3>Open</h3>',
 ].join('');
@@ -35,6 +37,8 @@ test('role queries agree with the matchers', async ({ app, browser, screen }) =>
   await expect(screen.getByRole('banner', { name: 'Region spaced header' })).toHaveRole('banner');
   await expect(screen.getByRole('contentinfo', { name: 'Chapter footer' })).toHaveRole('contentinfo');
   await expect(screen.getByRole('contentinfo', { name: 'Unknown footer' })).toHaveCount(0);
+  await expect(screen.getByRole('banner', { name: 'In list header' })).toHaveRole('banner');
+  await expect(screen.getByRole('banner', { name: 'Not in list header' })).toHaveCount(0);
   await expect(screen.getByRole('heading', { name: 'Archived', disabled: false })).toHaveCount(0);
   await expect(screen.getByRole('heading', { name: 'Archived', disabled: true })).toBeDisabled();
   await expect(screen.getByRole('heading', { name: 'Open', disabled: false })).toBeEnabled();

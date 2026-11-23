@@ -159,26 +159,46 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     'graphics-document', 'graphics-object', 'graphics-symbol',
     'comment', 'image', 'sectionfooter', 'sectionheader', 'suggestion',
   ];
-  /** The ancestors a role needs for Chrome to keep it; outside them the element falls back to its tag. */
-  const REQUIRED_CONTEXT: Readonly<Record<string, string>> = {
-    listitem: 'ul, ol, menu, [role~="list" i], [role~="directory" i]',
-    option: 'select, [role~="listbox" i]',
-    treeitem: '[role~="tree" i], [role~="group" i]',
+  /** The ancestors a role needs for Chrome to keep it, by tag or by role; outside them it gives way to the next token. */
+  const REQUIRED_CONTEXT: Readonly<Record<string, { readonly tags: readonly string[]; readonly roles: readonly string[] }>> = {
+    listitem: { tags: ['ul', 'ol', 'menu'], roles: ['list', 'directory', 'group'] },
+    option: { tags: ['select'], roles: ['listbox', 'group'] },
+    treeitem: { tags: [], roles: ['tree', 'group'] },
   };
   /** The global ARIA attributes that do not make Chrome ignore a `none` or `presentation` role. */
   const NOT_PRESENTATION_CONFLICTS = ['aria-dropeffect', 'aria-grabbed', 'aria-hidden'];
+  /** The first role token Chrome accepts on the element. */
+  const chromeRole = (el: Element): string | null =>
+    (ariaToken(el, 'role') ?? '').split(/[ \t\n\f\r]+/).find((token) => chromeKeepsRole(el, token)) ?? null;
+  /**
+   * Whether an ancestor gives the element its required context, as Chrome
+   * walks them: a plain container is passed through, and any other role ends
+   * the walk. Shadow roots do not end it.
+   */
+  const inRequiredContext = (el: Element, context: { readonly tags: readonly string[]; readonly roles: readonly string[] }): boolean => {
+    for (let node = composedParent(el); node !== null; node = composedParent(node)) {
+      if (context.tags.indexOf(node.tagName.toLowerCase()) !== -1) return true;
+      const explicit = chromeRole(node);
+      if (explicit !== null && context.roles.indexOf(explicit) !== -1) return true;
+      const role = explicit ?? tagRole(node);
+      if (role !== null && role !== 'none' && role !== 'presentation' && role !== 'generic') return false;
+      // Chrome gives these a role of their own that the reader's vocabulary does not.
+      if (role === null && ['blockquote', 'form', 'label'].indexOf(node.tagName.toLowerCase()) !== -1) return false;
+    }
+    return false;
+  };
+  /** The element's parent, or its shadow host at a shadow root. */
+  const composedParent = (el: Element): Element | null => {
+    if (el.parentElement !== null) return el.parentElement;
+    const root = el.getRootNode();
+    return root instanceof ShadowRoot ? root.host : null;
+  };
   /** Whether Chrome accepts a role token on the element; a refused one gives way to the next token. */
   const chromeKeepsRole = (el: Element, role: string): boolean => {
     if (ARIA_ROLES.indexOf(role) === -1 && CHROME_ONLY_ROLES.indexOf(role) === -1) return false;
     if (role === 'region' || role === 'form') return hasOwnName(el);
     const context = REQUIRED_CONTEXT[role];
-    if (context === undefined) return true;
-    for (let scope = el; ;) {
-      if ((scope === el ? scope.parentElement?.closest(context) : scope.closest(context)) != null) return true;
-      const root = scope.getRootNode();
-      if (!(root instanceof ShadowRoot)) return false;
-      scope = root.host;
-    }
+    return context === undefined || inRequiredContext(el, context);
   };
   /**
    * An element that keeps a header or footer inside it from being the page's,
