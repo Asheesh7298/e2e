@@ -227,8 +227,10 @@ const NODE_READ = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_
 async function radioKind(element: ElementHandle<Element>): Promise<'native' | 'aria' | undefined> {
   const kind = await element.evaluate((node) => {
     if (node instanceof HTMLInputElement && node.type === 'radio') return 'native';
-    // Only a role with a radio token, in some letter case, needs the reader's verdict; menuitemradio and radiogroup do not.
-    return /(?:^|[ \t\n\f\r])radio(?:$|[ \t\n\f\r])/i.test(node.getAttribute('role') ?? '') ? 'maybe' : undefined;
+    const tokens = (node.getAttribute('role') ?? '').toLowerCase().split(/[ \t\n\f\r]+/).filter((token) => token !== '');
+    // A first token of radio is the role. Only a later one needs the reader's verdict; menuitemradio and radiogroup do not.
+    if (tokens[0] === 'radio') return 'aria';
+    return tokens.indexOf('radio') !== -1 ? 'maybe' : undefined;
   });
   if (kind !== 'maybe') return kind;
   // The role only adds a hint to a failure message, so a reader that cannot read this node must not stop the click.

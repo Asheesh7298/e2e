@@ -183,6 +183,16 @@ describe.each(KINDS)('through the %s target', (kind) => {
     expect(await page.getAttribute('#pro', 'aria-checked')).toBe('false');
   });
 
+  it('keeps the radio hint on a radio the reader cannot read', async () => {
+    await page.setContent(`
+      <script>customElements.define('plan-hint', class extends HTMLElement { get labels() { return ['Pro']; } });</script>
+      <plan-hint role="radio" id="pro" aria-checked="true" tabindex="0">Pro</plan-hint>`);
+    expect(await perform(await targetOf(kind, '#pro'), { kind: 'uncheck' })).toMatchObject({
+      code: 'NOT_ACTIONABLE',
+      message: expect.stringContaining('another radio in its group'),
+    });
+  });
+
   it.each(['radio', 'Radio', 'unknown RADIO'])('fails an ARIA radio (role="%s") whose click keeps it checked, naming the radio group', async (role) => {
     await page.setContent(`<div role="${role}" id="pro" aria-checked="true" tabindex="0">Pro</div>`);
     expect(await perform(await targetOf(kind, '#pro'), { kind: 'uncheck' })).toMatchObject({

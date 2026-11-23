@@ -145,8 +145,16 @@ function candidatesOf(query: SemanticQuery, testIdAttribute: string): Candidates
         ...(states.disabled === undefined ? {} : { disabled: states.disabled }),
       };
       if (Object.keys(readsAs).length === 0) return { kind: 'playwright', locate: (roots) => roots.getByRole(role, named) };
-      const agrees = readsAsSelector({ ...readsAs, testIdAttribute, secureFieldSelector: SECURE_FIELD_SELECTOR });
-      return { kind: 'playwright', locate: (roots) => roots.getByRole(role, named).locator(agrees) };
+      const reader = { testIdAttribute, secureFieldSelector: SECURE_FIELD_SELECTOR };
+      const agrees = readsAsSelector({ ...readsAs, ...reader });
+      if (states.disabled === undefined) return { kind: 'playwright', locate: (roots) => roots.getByRole(role, named).locator(agrees) };
+      // The filter is the reader's, so a node it cannot read takes Playwright's answer for the state.
+      const unreadable = readsAsSelector({ unreadable: true, ...reader });
+      const playwrightState = { ...named, disabled: states.disabled };
+      return {
+        kind: 'playwright',
+        locate: (roots) => roots.getByRole(role, named).locator(agrees).or(roots.getByRole(role, playwrightState).locator(unreadable)),
+      };
     }
     case 'label':
       return query.value.kind === 'string' && query.value.exact

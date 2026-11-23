@@ -145,15 +145,57 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     ['aria-label', 'aria-labelledby', 'title'].some((attribute) => (el.getAttribute(attribute) ?? '').trim() !== '');
 
   const SECTIONING_TAGS = ['article', 'aside', 'main', 'nav', 'section'];
-  const SECTIONING_ROLES = ['article', 'complementary', 'main', 'navigation', 'region'];
-  /** A sectioning element, or one whose effective explicit role (its first recognized token) is a sectioning role. */
+  const SECTIONING_ROLES = ['article', 'complementary', 'main', 'navigation'];
+  /**
+   * Roles Chrome recognizes that `ARIA_ROLES` leaves out. The reader reports
+   * none of them, but the first recognized token decides what scopes a header,
+   * so `role="doc-chapter article"` is a chapter and scopes nothing.
+   */
+  const CHROME_ONLY_ROLES = [
+    ...('abstract acknowledgments afterword appendix backlink biblioentry bibliography biblioref chapter colophon ' +
+      'conclusion cover credit credits dedication endnote endnotes epigraph epilogue errata example footnote foreword ' +
+      'glossary glossref index introduction noteref notice pagebreak pagefooter pageheader pagelist part preface ' +
+      'prologue pullquote qna subtitle tip toc').split(' ').map((role) => `doc-${role}`),
+    'graphics-document', 'graphics-object', 'graphics-symbol',
+    'comment', 'image', 'sectionfooter', 'sectionheader', 'suggestion',
+  ];
+  /** The ancestors a role needs for Chrome to keep it; outside them the element falls back to its tag. */
+  const REQUIRED_CONTEXT: Readonly<Record<string, string>> = {
+    listitem: 'ul, ol, menu, [role~="list" i], [role~="directory" i]',
+    option: 'select, [role~="listbox" i]',
+    treeitem: '[role~="tree" i], [role~="group" i]',
+  };
+  /** The global ARIA attributes that do not make Chrome ignore a `none` or `presentation` role. */
+  const NOT_PRESENTATION_CONFLICTS = ['aria-dropeffect', 'aria-grabbed', 'aria-hidden'];
+  /** Whether Chrome accepts a role token on the element; a refused one gives way to the next token. */
+  const chromeKeepsRole = (el: Element, role: string): boolean => {
+    if (ARIA_ROLES.indexOf(role) === -1 && CHROME_ONLY_ROLES.indexOf(role) === -1) return false;
+    if (role === 'region' || role === 'form') return hasOwnName(el);
+    const context = REQUIRED_CONTEXT[role];
+    if (context === undefined) return true;
+    for (let scope = el; ;) {
+      if ((scope === el ? scope.parentElement?.closest(context) : scope.closest(context)) != null) return true;
+      const root = scope.getRootNode();
+      if (!(root instanceof ShadowRoot)) return false;
+      scope = root.host;
+    }
+  };
+  /**
+   * An element that keeps a header or footer inside it from being the page's,
+   * as Chrome reads it: a sectioning tag whose role does not replace it, or a
+   * first accepted role that scopes. An exact `role="region"` scopes too, as
+   * Playwright's `[role=region]` does, though Chrome never scopes by region.
+   */
   const isSectioning = (el: Element): boolean => {
-    const role = explicitRole(el);
-    // An explicit role replaces the tag's, so `<nav role="none">` scopes nothing.
-    if (role === null && SECTIONING_TAGS.indexOf(el.tagName.toLowerCase()) !== -1) return true;
-    // Chrome never scopes a header by region; only the lowercase token Playwright's [role=region] matches does.
-    if (role === 'region') return (el.getAttribute('role') ?? '').split(/[ \t\n\f\r]+/).indexOf('region') !== -1;
-    return SECTIONING_ROLES.indexOf(role ?? '') !== -1;
+    if (el.getAttribute('role') === 'region') return true;
+    const tokens = (ariaToken(el, 'role') ?? '').split(/[ \t\n\f\r]+/);
+    const role = tokens.find((token) => chromeKeepsRole(el, token)) ?? null;
+    // A `none` behind a refused `region` or `form` stays `none`, conflict or not.
+    const behindLandmark = tokens.slice(0, role === null ? 0 : tokens.indexOf(role)).some((token) => token === 'region' || token === 'form');
+    const presentationIgnored = !behindLandmark && (role === 'none' || role === 'presentation') && (isFocusable(el) || isEditingHost(el) ||
+      GLOBAL_ARIA_ATTRIBUTES.some(([name]) => NOT_PRESENTATION_CONFLICTS.indexOf(name) === -1 && el.hasAttribute(name)));
+    if (role === null || presentationIgnored) return SECTIONING_TAGS.indexOf(el.tagName.toLowerCase()) !== -1;
+    return SECTIONING_ROLES.indexOf(role) !== -1;
   };
 
   /**

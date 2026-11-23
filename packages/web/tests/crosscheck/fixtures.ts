@@ -79,6 +79,11 @@ export const FIXTURE_PAGES: readonly FixturePage[] = [
       <div role="Article" aria-label="Post"><header aria-label="Post header">Heading</header></div>
       <div role="group ARTICLE" aria-label="Upper fallback"><header aria-label="Upper fallback header">Site header</header></div>
       <div role="group article" aria-label="Lower fallback"><header aria-label="Lower fallback header">Site header</header></div>
+      <nav role="none" aria-label="Kept nav"><header aria-label="Kept nav header">Section header</header></nav>
+      <aside role="none" tabindex="0"><footer aria-label="Kept aside footer">Section footer</footer></aside>
+      <div role="region group" aria-label="Region first"><header aria-label="Region first header">Site header</header></div>
+      <div role="region " aria-label="Region spaced"><header aria-label="Region spaced header">Site header</header></div>
+      <div role="doc-chapter article" aria-label="Chapter"><footer aria-label="Chapter footer">Site footer</footer></div>
       <div role="button">Choose <div role="listbox"><div role="option" aria-selected="TRUE">Picked</div><div role="option" aria-selected="false">Skipped</div></div></div>
     `,
   },
