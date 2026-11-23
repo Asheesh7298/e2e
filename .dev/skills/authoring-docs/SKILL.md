@@ -474,6 +474,10 @@ expected to update a language they don't speak.
   language switcher miss until it is back in line) and the same code blocks.
   `pnpm docs:check` (`scripts/check-docs-translations.ts`) warns, without
   failing, on every page and label that is behind.
+- After you apply a review suggestion on wrapped prose, reread the whole
+  paragraph against the English page.
+  `pnpm docs:check` catches only a leftover repeated tail, not a deleted
+  sentence.
 
 ## Before you commit
 
