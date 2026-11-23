@@ -85,6 +85,21 @@ describe('URL globs', () => {
     expect(matches('classes?next=http://127.0.0.1/orders', 'http://x.test/classes?next=http://127.0.0.1/orders')).toBe(false);
   });
 
+  it('resolves a first segment that is not a real scheme, and a scheme with no //, against the base', () => {
+    for (const path of ['a_b:/x', '1:/x', ':/x', 'a_b:']) {
+      expect(matches(path, `http://localhost:3000/${path}`), path).toBe(true);
+    }
+    expect(matches('http:/x', 'http://localhost:3000/x')).toBe(true);
+    expect(matches('http:x', 'http://localhost:3000/x')).toBe(true);
+    expect(matches('http:/x', 'http://x/')).toBe(false);
+    expect(urlPattern(toTextPattern('https:a/b'), () => 'https://app.test/').matches('https://app.test/a/b')).toBe(true);
+    const noBase = (): string => {
+      throw new TestError('APP_URL_REQUIRED', 'no app url');
+    };
+    expect(urlPattern(toTextPattern('http:/x'), noBase).matches('http://x/')).toBe(true);
+    expect(() => urlPattern(toTextPattern('a_b:/x'), noBase)).toThrow(expect.objectContaining({ code: 'APP_URL_REQUIRED' }));
+  });
+
   it('holds a globbed scheme while it normalizes the host and the path', () => {
     expect(matches('http{,s}://LOCALHOST:3000/a', 'https://localhost:3000/a')).toBe(true);
     expect(matches('http{,s}://localhost:3000/a/../b', 'https://localhost:3000/b')).toBe(true);
@@ -116,7 +131,7 @@ describe('URL globs', () => {
       expect(() => urlPattern(toTextPattern(pattern), noBase), String(pattern)).not.toThrow();
     }
     expect(urlPattern(toTextPattern('https://x.test/a'), noBase).matches('https://x.test/a')).toBe(true);
-    for (const pattern of ['/a', 'a/*']) {
+    for (const pattern of ['/a', 'a/*', 'x*?next=http://x.test/a']) {
       expect(() => urlPattern(toTextPattern(pattern), noBase), pattern).toThrow(expect.objectContaining({ code: 'APP_URL_REQUIRED' }));
     }
   });

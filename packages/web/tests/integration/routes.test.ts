@@ -416,15 +416,21 @@ describe('browser route and waitForResponse decisions', () => {
     ['**/api/my file*', '/api/my%20file.txt', true],
   ];
 
+  /** A miss is that call's timeout; any other rejection fails the row instead of reading as `false`. */
+  const missed = (timeoutCode: string) => (error: { readonly code?: string }): false => {
+    if (error.code !== timeoutCode) throw error;
+    return false;
+  };
+
   it.each(SHARED_PATTERNS)('reads %s against %s the same through route, waitForURL, and waitForResponse', async (pattern, pathname, expected) => {
     await browser.route(pattern, (route) => route.fulfill({ body: 'routed' }));
     expect((await fetchText(`${origin}${pathname}`)) === 'routed', 'route').toBe(expected);
     await browser.unrouteAll();
     await page.goto(`${origin}${pathname}`);
-    const waited = await browser.waitForURL(pattern, { timeout: 200 }).then(() => true, () => false);
+    const waited = await browser.waitForURL(pattern, { timeout: 200 }).then(() => true, missed('ASSERTION_FAILED'));
     expect(waited, 'waitForURL').toBe(expected);
     const [responded] = await Promise.all([
-      browser.waitForResponse(pattern, { timeout: 300 }).then(() => true, () => false),
+      browser.waitForResponse(pattern, { timeout: 300 }).then(() => true, missed('OPERATION_TIMEOUT')),
       page.evaluate((url) => { void fetch(url).then((reply) => reply.text()).catch(() => undefined); }, `${origin}${pathname}`),
     ]);
     expect(responded, 'waitForResponse').toBe(expected);
@@ -452,11 +458,14 @@ describe('browser route and waitForResponse decisions', () => {
     expect(body).toBe('routed');
     expect(response.url).toBe(`${origin}/api/quote`);
     await noAppUrl.unrouteAll();
+    await page.goto(`${origin}/api/quote`);
+    await noAppUrl.waitForURL(pattern, { timeout: 1_000 });
   });
 
-  it('refuses a relative route pattern on a target with no app URL', () => {
+  it('refuses a relative pattern on a target with no app URL', async () => {
     const noAppUrl = noAppUrlBrowser();
     expect(() => noAppUrl.route('/api/quote', (route) => route.continue())).toThrow(expect.objectContaining({ code: 'APP_URL_REQUIRED' }));
+    await expect((async () => noAppUrl.waitForURL('/api/quote', { timeout: 200 }))()).rejects.toMatchObject({ code: 'APP_URL_REQUIRED' });
   });
 
   it('matches one method and lets another reach the network', async () => {

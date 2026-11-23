@@ -580,7 +580,8 @@ await browser.waitForURL(/\/orders\/\d+$/, { timeout: 15_000 });
   one path segment, `**` across `/`, `{a,b}` matches either, and `\` escapes
   the next character. `?` is literal, so a query string reads as written, and a
   string with no wildcard matches that URL exactly. A glob resolves against the
-  base URL unless it starts with `*` or a scheme such as `about:`, and a
+  base URL unless it starts with `*` or is an absolute URL such as
+  `https://x.test/**` or `about:blank`, and a
   resolved glob's scheme and host match in any letter case. Non-ASCII text and
   spaces in a glob's path and query match the URL as the browser encodes it. The empty string
   matches any URL.

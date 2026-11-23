@@ -92,6 +92,26 @@ function literalSource(ch: string): string {
 }
 
 /**
+ * The base a string resolves against, read only when the string needs one.
+ * A real or globbed scheme and a full URL stand alone, while `a_b:/x` and
+ * `login?next=https://...` are relative. `http:/x` and `http:x` are relative
+ * to a base of that scheme, and the full URLs they parse to on a target with
+ * no app URL.
+ */
+function baseFor(glob: string, base: () => string): string | undefined {
+  if (/^(?:https?|wss?|ftp):(?!\/\/)/i.test(glob)) {
+    try {
+      return base();
+    } catch {
+      return undefined;
+    }
+  }
+  const first = glob.split('/', 1)[0]!;
+  const scheme = first.endsWith(':') && (/^[a-z][a-z0-9+.-]*:$/i.test(first) || (isSchemePattern(first) && !/[?#]/.test(first)));
+  return scheme || URL.canParse(glob) ? undefined : base();
+}
+
+/**
  * Resolves a relative URL glob against the base URL, as Playwright's
  * `resolveGlobBase` does: each path segment that holds a glob character is
  * swapped for a placeholder the URL parser leaves alone, the rest resolves,
@@ -102,9 +122,7 @@ function literalSource(ch: string): string {
  */
 function resolveUrlGlob(glob: string, base: () => string): string {
   if (glob.startsWith('*')) return glob;
-  const first = glob.split('/', 1)[0]!;
-  // A scheme never holds `?` or `#`, so `login?next=https://...` is a relative URL whose query holds one.
-  const baseHref = (first.endsWith(':') && !/[?#]/.test(first)) || URL.canParse(glob) ? undefined : base();
+  const baseHref = baseFor(glob, base);
   // With nothing to hold back, the URL parser normalizes the whole string, query included, as it does the browser's URL.
   if (!/[*{}\\]/.test(glob)) return URL.canParse(glob, baseHref) ? new URL(glob, baseHref).href : glob;
   if (UNRESOLVED_GLOB_SCHEMES.some((scheme) => glob.startsWith(scheme))) return glob;
