@@ -45,6 +45,34 @@ async function captureByTestId(): Promise<Map<string | undefined, SemanticNode>>
   return new Map(nodes.map((node) => [node.testId, node]));
 }
 
+describe('header scope', () => {
+  it('does not re-walk the ancestors for each role token that needs context', async () => {
+    await page.setContent('<!doctype html><body></body>');
+    await page.evaluate(() => {
+      let parent: Element = document.body;
+      for (let depth = 0; depth < 16; depth += 1) {
+        const wrapper = document.createElement('div');
+        wrapper.setAttribute('role', 'treeitem listitem');
+        parent.append(wrapper);
+        parent = wrapper;
+      }
+      parent.insertAdjacentHTML('beforeend', '<header data-testid="deep">x</header>');
+      const original = Element.prototype.getAttribute;
+      const counted = globalThis as unknown as { attributeReads: number };
+      counted.attributeReads = 0;
+      Element.prototype.getAttribute = function getAttribute(this: Element, name: string) {
+        counted.attributeReads += 1;
+        return original.call(this, name);
+      };
+    });
+    const options = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR, mode: { kind: 'ariaRole' as const } };
+    const role = await page.getByTestId('deep').evaluate(readSemanticsFunction<typeof options.mode>, options);
+    const reads = await page.evaluate(() => (globalThis as unknown as { attributeReads: number }).attributeReads);
+    expect(role).toBe('banner');
+    expect(reads).toBeLessThan(5_000);
+  });
+});
+
 describe('checked and selected', () => {
   it('lists closed-select choices but excludes explicitly hidden options and optgroups', async () => {
     await page.setContent(`

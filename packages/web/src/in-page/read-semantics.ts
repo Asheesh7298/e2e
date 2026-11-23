@@ -16,8 +16,9 @@ import type { RawNodeData, RawObservedNode, SemanticMode, SemanticResult } from 
  * the selector engine's task that found it (`read-selector.ts`,
  * `label-selector.ts`), so the element is always in its document.
  * `mode.kind === 'hidden'` answers that one element's `states.hidden` alone.
- * `mode.kind === 'disabled'` answers its `states.disabled` alone, for a node
- * whose full read throws.
+ * `mode.kind === 'disabled'` answers its `states.disabled` alone, and
+ * `mode.kind === 'ariaRole'` its role by tag, as a role query reads an editing
+ * host.
  * `mode.kind === 'tree'` walks the subtree for one agent observation and
  * returns live element handles aligned with the flattened node list. The two
  * modes also project nodes differently; those differences are data (see
@@ -165,27 +166,29 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
   const REQUIRED_CONTEXT: Readonly<Record<string, { readonly tags: readonly string[]; readonly roles: readonly string[] }>> = {
     listitem: { tags: ['ul', 'ol', 'menu'], roles: ['list', 'directory', 'group'] },
     option: { tags: ['select'], roles: ['listbox', 'group'] },
-    treeitem: { tags: [], roles: ['tree', 'group'] },
+    treeitem: { tags: [], roles: ['tree', 'group', 'treeitem'] },
   };
   /** The global ARIA attributes that do not make Chrome ignore a `none` or `presentation` role. */
   const NOT_PRESENTATION_CONFLICTS = ['aria-dropeffect', 'aria-grabbed', 'aria-hidden'];
-  /** The first role token Chrome accepts on the element. */
-  const chromeRole = (el: Element): string | null =>
-    (ariaToken(el, 'role') ?? '').split(/[ \t\n\f\r]+/).find((token) => chromeKeepsRole(el, token)) ?? null;
+  /** The first role token Chrome accepts on the element; memoized, since each token that needs context walks the ancestors. */
+  const chromeRole = memoized((el: Element): string | null =>
+    (ariaToken(el, 'role') ?? '').split(/[ \t\n\f\r]+/).find((token) => chromeKeepsRole(el, token)) ?? null);
   /**
    * Whether an ancestor gives the element its required context, as Chrome
-   * walks them: a plain container is passed through, and any other role ends
-   * the walk. Shadow roots do not end it.
+   * walks them: a `none`, or a `div`, `span`, `slot`, or custom element with no
+   * role it knows, is passed through, and anything else ends the walk, a role
+   * it refused included. Shadow roots do not end it.
    */
   const inRequiredContext = (el: Element, context: { readonly tags: readonly string[]; readonly roles: readonly string[] }): boolean => {
     for (let node = composedParent(el); node !== null; node = composedParent(node)) {
-      if (context.tags.indexOf(node.tagName.toLowerCase()) !== -1) return true;
+      const tag = node.tagName.toLowerCase();
+      if (context.tags.indexOf(tag) !== -1) return true;
       const explicit = chromeRole(node);
       if (explicit !== null && context.roles.indexOf(explicit) !== -1) return true;
-      const role = explicit ?? tagRole(node);
-      if (role !== null && role !== 'none' && role !== 'presentation' && role !== 'generic') return false;
-      // Chrome gives these a role of their own that the reader's vocabulary does not.
-      if (role === null && ['blockquote', 'form', 'label'].indexOf(node.tagName.toLowerCase()) !== -1) return false;
+      if (explicit === 'none' || explicit === 'presentation') continue;
+      const tokens = (ariaToken(node, 'role') ?? '').split(/[ \t\n\f\r]+/);
+      if (tokens.some((token) => ARIA_ROLES.indexOf(token) !== -1 || CHROME_ONLY_ROLES.indexOf(token) !== -1)) return false;
+      if (['div', 'span', 'slot'].indexOf(tag) === -1 && tag.indexOf('-') === -1) return false;
     }
     return false;
   };
@@ -214,6 +217,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     const role = tokens.find((token) => chromeKeepsRole(el, token)) ?? null;
     // A `none` behind a refused `region` or `form` stays `none`, conflict or not.
     const behindLandmark = tokens.slice(0, role === null ? 0 : tokens.indexOf(role)).some((token) => token === 'region' || token === 'form');
+    // Chrome's conflict rule, which skips three attributes `hasPresentationConflict` counts as Playwright does.
     const presentationIgnored = !behindLandmark && (role === 'none' || role === 'presentation') && (isFocusable(el) || isEditingHost(el) ||
       GLOBAL_ARIA_ATTRIBUTES.some(([name]) => NOT_PRESENTATION_CONFLICTS.indexOf(name) === -1 && el.hasAttribute(name)));
     if (role === null || presentationIgnored) return SECTIONING_TAGS.indexOf(el.tagName.toLowerCase()) !== -1;
@@ -1906,6 +1910,7 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
   // discriminant narrows the value but not the generic, hence the casts.
   if (options.mode.kind === 'hidden') return isHidden(element) as SemanticResult<Mode>;
   if (options.mode.kind === 'disabled') return isDisabled(element) as SemanticResult<Mode>;
+  if (options.mode.kind === 'ariaRole') return ariaRoleOf(element) as SemanticResult<Mode>;
   if (options.mode.kind === 'node') {
     return describe(element) as SemanticResult<Mode>;
   }

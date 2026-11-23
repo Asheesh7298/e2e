@@ -27,9 +27,9 @@ export function readsAsSelector(body: ReadsAsSelectorBody): string {
 /**
  * The engine behind `e2e-reads-as=<json>`: each query root is a match of the
  * query before it, kept when the reader agrees, so the query's matches keep
- * their order. A node the full read throws on keeps Playwright's role and
- * answers `disabled` from that state's read alone; one that throws there too
- * stays a match.
+ * their order. Each state is read alone, so a name the reader cannot compute
+ * does not cost the answer, an editing host keeps its tag's role, and a read
+ * that throws keeps the match.
  */
 export const READS_AS_SELECTOR_ENGINE_SOURCE = `() => {
   const read = (${readSemanticsFunction.toString()});
@@ -37,19 +37,15 @@ export const READS_AS_SELECTOR_ENGINE_SOURCE = `() => {
     if (root.nodeType !== 1) return [];
     const body = JSON.parse(selector);
     const reader = { testIdAttribute: body.testIdAttribute, secureFieldSelector: body.secureFieldSelector };
-    let node;
-    try {
-      node = read(root, { ...reader, mode: { kind: 'node' } });
-    } catch {
-      if (body.disabled === undefined) return [root];
+    const reads = (kind, expected) => {
       try {
-        return read(root, { ...reader, mode: { kind: 'disabled' } }) === body.disabled ? [root] : [];
+        return read(root, { ...reader, mode: { kind } }) === expected;
       } catch {
-        return [root];
+        return true;
       }
-    }
-    if (body.role !== undefined && node.role !== body.role) return [];
-    if (body.disabled !== undefined && node.states.disabled !== body.disabled) return [];
+    };
+    if (body.role !== undefined && !reads('ariaRole', body.role)) return [];
+    if (body.disabled !== undefined && !reads('disabled', body.disabled)) return [];
     return [root];
   };
   return { queryAll, query: (root, selector) => queryAll(root, selector)[0] ?? null };

@@ -26,6 +26,13 @@ const PAGE = [
   '<nav role="region none" tabindex="0"><header aria-label="Behind region header">Item</header></nav>',
   '<nav role="none" contenteditable><header aria-label="Editing host header">Item</header></nav>',
   '<div role="region article"><header aria-label="Region article header">Item</header></div>',
+  '<ul><pre><nav role="listitem"><header aria-label="In pre header">Item</header></nav></pre></ul>',
+  '<ul><div role="generic"><nav role="listitem"><header aria-label="In generic header">Item</header></nav></div></ul>',
+  '<ul><x-wrap><nav role="listitem"><header aria-label="In custom header">Item</header></nav></x-wrap></ul>',
+  '<ul><div role="none"><nav role="listitem"><header aria-label="Through none header">Item</header></nav></div></ul>',
+  '<div role="tree"><div role="treeitem"><nav role="treeitem"><header aria-label="Nested tree header">Item</header></nav></div></div>',
+  '<header contenteditable aria-label="Editable header">Edit</header>',
+  '<footer contenteditable aria-label="Editable footer">Edit</footer>',
   '<h3 aria-disabled="TrUe">Archived</h3>',
   '<h3>Open</h3>',
 ].join('');
@@ -53,6 +60,13 @@ test('role queries agree with the matchers', async ({ app, browser, screen }) =>
   await expect(screen.getByRole('banner', { name: 'Behind region header' })).toHaveRole('banner');
   await expect(screen.getByRole('banner', { name: 'Editing host header' })).toHaveCount(0);
   await expect(screen.getByRole('banner', { name: 'Region article header' })).toHaveCount(0);
+  await expect(screen.getByRole('banner', { name: 'In pre header' })).toHaveCount(0);
+  await expect(screen.getByRole('banner', { name: 'In generic header' })).toHaveCount(0);
+  await expect(screen.getByRole('banner', { name: 'In custom header' })).toHaveRole('banner');
+  await expect(screen.getByRole('banner', { name: 'Through none header' })).toHaveRole('banner');
+  await expect(screen.getByRole('banner', { name: 'Nested tree header' })).toHaveRole('banner');
+  await expect(screen.getByRole('banner', { name: 'Editable header' })).toHaveCount(1);
+  await expect(screen.getByRole('contentinfo', { name: 'Editable footer' })).toHaveCount(1);
   await expect(screen.getByRole('heading', { name: 'Archived', disabled: false })).toHaveCount(0);
   await expect(screen.getByRole('heading', { name: 'Archived', disabled: true })).toBeDisabled();
   await expect(screen.getByRole('heading', { name: 'Open', disabled: false })).toBeEnabled();
