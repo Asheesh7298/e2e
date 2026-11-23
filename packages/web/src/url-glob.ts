@@ -102,7 +102,9 @@ function literalSource(ch: string): string {
  */
 function resolveUrlGlob(glob: string, base: () => string): string {
   if (glob.startsWith('*')) return glob;
-  const baseHref = glob.split('/', 1)[0]!.endsWith(':') || URL.canParse(glob) ? undefined : base();
+  const first = glob.split('/', 1)[0]!;
+  // A scheme never holds `?` or `#`, so `login?next=https://...` is a relative URL whose query holds one.
+  const baseHref = (first.endsWith(':') && !/[?#]/.test(first)) || URL.canParse(glob) ? undefined : base();
   // With nothing to hold back, the URL parser normalizes the whole string, query included, as it does the browser's URL.
   if (!/[*{}\\]/.test(glob)) return URL.canParse(glob, baseHref) ? new URL(glob, baseHref).href : glob;
   if (UNRESOLVED_GLOB_SCHEMES.some((scheme) => glob.startsWith(scheme))) return glob;

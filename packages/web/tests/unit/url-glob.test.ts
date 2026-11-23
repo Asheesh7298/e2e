@@ -78,6 +78,18 @@ describe('URL globs', () => {
     expect(matches('/api/flags', 'http://x.test/api/flags')).toBe(false);
   });
 
+  it('resolves a relative string whose query or fragment holds a URL against the base', () => {
+    expect(matches('classes?next=http://127.0.0.1/orders', 'http://localhost:3000/classes?next=http://127.0.0.1/orders')).toBe(true);
+    expect(matches('login#next=https://x.test/a', 'http://localhost:3000/login#next=https://x.test/a')).toBe(true);
+    expect(matches('login?next=https://x.test/*', 'http://localhost:3000/login?next=https://x.test/a')).toBe(true);
+    expect(matches('classes?next=http://127.0.0.1/orders', 'http://x.test/classes?next=http://127.0.0.1/orders')).toBe(false);
+  });
+
+  it('holds a globbed scheme while it normalizes the host and the path', () => {
+    expect(matches('http{,s}://LOCALHOST:3000/a', 'https://localhost:3000/a')).toBe(true);
+    expect(matches('http{,s}://localhost:3000/a/../b', 'https://localhost:3000/b')).toBe(true);
+  });
+
   it('tests a RegExp against the full URL', () => {
     expect(matches(/\/orders\/\d+$/, 'http://localhost:3000/orders/7')).toBe(true);
     expect(matches(/api\/\w+$/, 'http://x.test/api/flags')).toBe(true);
@@ -117,7 +129,7 @@ describe('URL globs', () => {
   });
 
   it('refuses a nested or unbalanced { before anything is matched', () => {
-    for (const glob of ['**/{a,{b}}', '**/{a', '**/a}']) {
+    for (const glob of ['**/{a,{b}}', '**/{a,{b}', '**/{a', '**/a}']) {
       expect(() => urlPattern(toTextPattern(glob), () => BASE), glob).toThrow(expect.objectContaining({ code: 'INVALID_ARGUMENT' }));
     }
   });
