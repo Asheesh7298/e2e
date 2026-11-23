@@ -58,16 +58,25 @@ describe('header scope', () => {
       }
       parent.insertAdjacentHTML('beforeend', '<header data-testid="deep">x</header>');
       const original = Element.prototype.getAttribute;
-      const counted = globalThis as unknown as { attributeReads: number };
+      const counted = globalThis as unknown as { attributeReads: number; originalGetAttribute: typeof original };
       counted.attributeReads = 0;
+      counted.originalGetAttribute = original;
       Element.prototype.getAttribute = function getAttribute(this: Element, name: string) {
         counted.attributeReads += 1;
         return original.call(this, name);
       };
     });
     const options = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR, mode: { kind: 'ariaRole' as const } };
-    const role = await page.getByTestId('deep').evaluate(readSemanticsFunction<typeof options.mode>, options);
-    const reads = await page.evaluate(() => (globalThis as unknown as { attributeReads: number }).attributeReads);
+    let role: string | null;
+    let reads: number;
+    try {
+      role = await page.getByTestId('deep').evaluate(readSemanticsFunction<typeof options.mode>, options);
+      reads = await page.evaluate(() => (globalThis as unknown as { attributeReads: number }).attributeReads);
+    } finally {
+      await page.evaluate(() => {
+        Element.prototype.getAttribute = (globalThis as unknown as { originalGetAttribute: typeof Element.prototype.getAttribute }).originalGetAttribute;
+      });
+    }
     expect(role).toBe('banner');
     expect(reads).toBeLessThan(5_000);
   });
