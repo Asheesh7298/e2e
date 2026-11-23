@@ -19,6 +19,13 @@ const PAGE = [
   '<div role="doc-foo article"><footer aria-label="Unknown footer">Unknown</footer></div>',
   '<ul><nav role="listitem"><header aria-label="In list header">Item</header></nav></ul>',
   '<div role="none list"><nav role="listitem"><header aria-label="Not in list header">Item</header></nav></div>',
+  '<ul><div role="button"><nav role="listitem"><header aria-label="Behind button header">Item</header></nav></div></ul>',
+  '<ul><label><nav role="listitem"><header aria-label="In label header">Item</header></nav></label></ul>',
+  '<div role="group"><nav role="listitem"><header aria-label="In group header">Item</header></nav></div>',
+  '<nav role="none" aria-hidden="false"><header aria-label="Aria hidden header">Item</header></nav>',
+  '<nav role="region none" tabindex="0"><header aria-label="Behind region header">Item</header></nav>',
+  '<nav role="none" contenteditable><header aria-label="Editing host header">Item</header></nav>',
+  '<div role="region article"><header aria-label="Region article header">Item</header></div>',
   '<h3 aria-disabled="TrUe">Archived</h3>',
   '<h3>Open</h3>',
 ].join('');
@@ -39,13 +46,41 @@ test('role queries agree with the matchers', async ({ app, browser, screen }) =>
   await expect(screen.getByRole('contentinfo', { name: 'Unknown footer' })).toHaveCount(0);
   await expect(screen.getByRole('banner', { name: 'In list header' })).toHaveRole('banner');
   await expect(screen.getByRole('banner', { name: 'Not in list header' })).toHaveCount(0);
+  await expect(screen.getByRole('banner', { name: 'Behind button header' })).toHaveCount(0);
+  await expect(screen.getByRole('banner', { name: 'In label header' })).toHaveCount(0);
+  await expect(screen.getByRole('banner', { name: 'In group header' })).toHaveRole('banner');
+  await expect(screen.getByRole('banner', { name: 'Aria hidden header' })).toHaveRole('banner');
+  await expect(screen.getByRole('banner', { name: 'Behind region header' })).toHaveRole('banner');
+  await expect(screen.getByRole('banner', { name: 'Editing host header' })).toHaveCount(0);
+  await expect(screen.getByRole('banner', { name: 'Region article header' })).toHaveCount(0);
   await expect(screen.getByRole('heading', { name: 'Archived', disabled: false })).toHaveCount(0);
   await expect(screen.getByRole('heading', { name: 'Archived', disabled: true })).toBeDisabled();
   await expect(screen.getByRole('heading', { name: 'Open', disabled: false })).toBeEnabled();
   await expect(screen.getByRole('heading', { name: 'Open', disabled: true })).toHaveCount(0);
 });
 
-test('takes the disabled state from Playwright for a node the reader cannot read', async ({ app, browser, screen }) => {
+test('a disabled filter keeps the matches and order of the query without it', async ({ app, browser, screen }) => {
+  await app.open('/');
+  const closedRoot = (buttons: string) => browser.evaluate((html) => {
+    document.body.innerHTML = '<div id="host"></div>';
+    document.getElementById('host')!.attachShadow({ mode: 'closed' }).innerHTML = html;
+  }, buttons);
+  await closedRoot('<button>A</button><button>B</button>');
+  await expect(screen.getByRole('button', { disabled: false })).toHaveCount(2);
+  await expect(screen.getByRole('button', { disabled: true })).toHaveCount(0);
+  await closedRoot('<button disabled>A</button><button disabled>B</button>');
+  await expect(screen.getByRole('button', { disabled: true })).toHaveCount(2);
+  await expect(screen.getByRole('button', { disabled: false })).toHaveCount(0);
+  for (const mode of ['closed', 'open'] as const) {
+    await browser.evaluate((shadowMode) => {
+      document.body.innerHTML = '<div id="host"></div><button>Light</button>';
+      document.getElementById('host')!.attachShadow({ mode: shadowMode }).innerHTML = '<button>Shadow</button>';
+    }, mode);
+    await expect(screen.getByRole('button', { disabled: false }).first()).toHaveText('Light');
+  }
+});
+
+test('reads the disabled state alone for a node the reader cannot read', async ({ app, browser, screen }) => {
   await app.open('/');
   await browser.evaluate(() => {
     customElements.define('plan-group', class extends HTMLElement { get labels() { return ['Go']; } });
@@ -76,7 +111,10 @@ describe('role queries and the reader', () => {
     const result = resultByTitle(outcome, 'role queries agree with the matchers');
     expect(result.attempts.at(-1)?.error, JSON.stringify(result.attempts.at(-1)?.error)).toBeUndefined();
     expect(result.status).toBe('passed');
-    const unreadable = resultByTitle(outcome, 'takes the disabled state from Playwright for a node the reader cannot read');
+    const ordered = resultByTitle(outcome, 'a disabled filter keeps the matches and order of the query without it');
+    expect(ordered.attempts.at(-1)?.error, JSON.stringify(ordered.attempts.at(-1)?.error)).toBeUndefined();
+    expect(ordered.status).toBe('passed');
+    const unreadable = resultByTitle(outcome, 'reads the disabled state alone for a node the reader cannot read');
     expect(unreadable.attempts.at(-1)?.error, JSON.stringify(unreadable.attempts.at(-1)?.error)).toBeUndefined();
     expect(unreadable.status).toBe('passed');
   }, 120_000);

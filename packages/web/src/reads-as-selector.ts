@@ -15,8 +15,6 @@ export const READS_AS_SELECTOR_ENGINE = 'e2e-reads-as';
 interface ReadsAsSelectorBody {
   readonly role?: string;
   readonly disabled?: boolean;
-  /** Keeps only the matches the reader cannot read: the branch that takes Playwright's `disabled` state for them. */
-  readonly unreadable?: boolean;
   readonly testIdAttribute: string;
   readonly secureFieldSelector: string;
 }
@@ -28,23 +26,28 @@ export function readsAsSelector(body: ReadsAsSelectorBody): string {
 
 /**
  * The engine behind `e2e-reads-as=<json>`: each query root is a match of the
- * query before it, kept when the reader agrees. A node the reader cannot read
- * keeps Playwright's answer: its role here, and its `disabled` state through
- * the `unreadable` branch, so a page that breaks the reader loses no match and
- * gains none.
+ * query before it, kept when the reader agrees, so the query's matches keep
+ * their order. A node the full read throws on keeps Playwright's role and
+ * answers `disabled` from that state's read alone; one that throws there too
+ * stays a match.
  */
 export const READS_AS_SELECTOR_ENGINE_SOURCE = `() => {
   const read = (${readSemanticsFunction.toString()});
   const queryAll = (root, selector) => {
     if (root.nodeType !== 1) return [];
     const body = JSON.parse(selector);
+    const reader = { testIdAttribute: body.testIdAttribute, secureFieldSelector: body.secureFieldSelector };
     let node;
     try {
-      node = read(root, { testIdAttribute: body.testIdAttribute, secureFieldSelector: body.secureFieldSelector, mode: { kind: 'node' } });
+      node = read(root, { ...reader, mode: { kind: 'node' } });
     } catch {
-      return body.unreadable === true || body.disabled === undefined ? [root] : [];
+      if (body.disabled === undefined) return [root];
+      try {
+        return read(root, { ...reader, mode: { kind: 'disabled' } }) === body.disabled ? [root] : [];
+      } catch {
+        return [root];
+      }
     }
-    if (body.unreadable === true) return [];
     if (body.role !== undefined && node.role !== body.role) return [];
     if (body.disabled !== undefined && node.states.disabled !== body.disabled) return [];
     return [root];

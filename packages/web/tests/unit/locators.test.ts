@@ -204,7 +204,6 @@ describe('projectExpression', () => {
       ROOTS,
       'role(checkbox,{"checked":true})',
       `locator(${readsAsSelector({ disabled: false, testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR })})`,
-      `or(${ROOTS}>role(checkbox,{"checked":true,"disabled":false})>locator(${readsAsSelector({ unreadable: true, testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR })}))`,
     ]);
   });
 

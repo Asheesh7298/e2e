@@ -177,7 +177,7 @@ describe.each(KINDS)('through the %s target', (kind) => {
     // A `labels` getter that returns strings makes the reader throw on the node.
     await page.setContent(`
       <script>customElements.define('plan-choice', class extends HTMLElement { get labels() { return ['Pro', 'Recommended']; } });</script>
-      <plan-choice role="radio" id="pro" aria-checked="true" tabindex="0"
+      <plan-choice role="x radio" id="pro" aria-checked="true" tabindex="0"
         onclick="this.setAttribute('aria-checked', 'false')">Pro</plan-choice>`);
     expect(await perform(await targetOf(kind, '#pro'), { kind: 'uncheck' })).toBeUndefined();
     expect(await page.getAttribute('#pro', 'aria-checked')).toBe('false');
