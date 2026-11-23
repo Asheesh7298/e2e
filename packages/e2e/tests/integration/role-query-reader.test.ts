@@ -76,7 +76,10 @@ test('a disabled filter keeps the matches and order of the query without it', as
       document.body.innerHTML = '<div id="host"></div><button>Light</button>';
       document.getElementById('host')!.attachShadow({ mode: shadowMode }).innerHTML = '<button>Shadow</button>';
     }, mode);
-    await expect(screen.getByRole('button', { disabled: false }).first()).toHaveText('Light');
+    const buttons = screen.getByRole('button', { disabled: false });
+    await expect(buttons).toHaveCount(2);
+    await expect(buttons.nth(0)).toHaveText('Light');
+    await expect(buttons.nth(1)).toHaveText('Shadow');
   }
 });
 
