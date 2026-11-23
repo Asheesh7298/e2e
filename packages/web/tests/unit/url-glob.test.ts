@@ -127,7 +127,7 @@ describe('URL globs', () => {
     const noBase = (): string => {
       throw new TestError('APP_URL_REQUIRED', 'no app url');
     };
-    for (const pattern of ['https://x.test/a', 'https://*.x.test/**', 'http{,s}://x.test/a', '**/a', 'about:blank', '', /a$/]) {
+    for (const pattern of ['https://x.test/a', 'https://*.x.test/**', 'http{,s}://x.test/a', 'http://localhost:3000**', '**/a', 'about:blank', '', /a$/]) {
       expect(() => urlPattern(toTextPattern(pattern), noBase), String(pattern)).not.toThrow();
     }
     expect(urlPattern(toTextPattern('https://x.test/a'), noBase).matches('https://x.test/a')).toBe(true);
