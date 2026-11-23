@@ -54,7 +54,8 @@ import { SessionStore } from '@e2e-dev/core/lib/run/sessions';
 import { outputLayout } from '@e2e-dev/core/lib/run/output';
 import { uncaptured, writeTerminal, type RunnerOutput } from './process-output.ts';
 import { refuseBun } from './public-ownership.ts';
-import { processSecrets, registerStaticSecrets, staticSecretLedger } from '@e2e-dev/core/lib/run/secrecy';
+import { processSecrets, registerProviderKeys, registerStaticSecrets, staticOutputLedger } from '@e2e-dev/core/lib/run/secrecy';
+import { warnOfNodeDebug } from './node-debug.ts';
 import { nextRerunDir, pruneArtifacts } from '@e2e-dev/core/lib/run/artifacts';
 import { carryForward, fileDurationKey, lastFailedIds, readLastRun, reportArtifactPaths, type RerunCollection } from './last-run.ts';
 import { loadTimings, writeTimings } from './timings.ts';
@@ -392,7 +393,8 @@ export interface ListResult {
  * expanded. `unmatched` is the positional arguments that selected no file,
  * `targets` the selected target names in config order. An empty selection
  * throws `NO_TESTS` unless `passWithNoTests`. Config, collection, and
- * selection failures throw the same classified error `run` records. Each
+ * selection failures throw the same classified error `run` records; the
+ * public `list` on `e2e/runner` redacts it and drops its cause. Each
  * call imports the test files again, so a later call sees an edit. With
  * `changedSince`, the configured test filters then judge the selection,
  * which may call a model: a pair one left out is `filtered`, with its
@@ -412,6 +414,8 @@ export async function list(options: ListOptions = {}): Promise<ListResult> {
 export async function listSelection(options: ListOptions, notice: (message: string) => void, processOutput?: RunnerOutput): Promise<ListResult> {
   const cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
+  // As `run` does: a key only this environment holds is redacted from a failure that quotes it.
+  registerProviderKeys(env);
   const runOptions = toSelectionRunOptions(options);
   const loadConfig = async (): Promise<ResolvedRunConfig> => {
     const loaded = await loadRunConfig(runOptions, cwd, env, runOptions.output === undefined ? {} : { output: runOptions.output });
@@ -458,6 +462,9 @@ const FORCE_KILL_MARGIN_MS = 1_000;
 export async function run(options: RunOptions = {}): Promise<RunOutcome> {
   const cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
+  // The workers start with this environment, so a key only it holds is redacted here too, before the config loads.
+  registerProviderKeys(env);
+  warnOfNodeDebug();
   const runId = uuidv7();
   /** The fresh module graph this run's config and test files load in, when `freshGraph` asks for one. */
   const graph = options.freshGraph === true ? `run-${runId}` : undefined;
@@ -878,8 +885,10 @@ export async function run(options: RunOptions = {}): Promise<RunOutcome> {
     ci: isCiMode(env),
     targets: (selected.targets ?? config.targets).map((target) => target.name),
     ...(config.agentNames.length === 1 && config.agentNames[0] === 'default' ? {} : { agents: config.agentNames }),
-    ...(runAgent?.model === undefined ? {} : { model: modelLabel(runAgent.model) }),
-    ...(runJudge === undefined ? {} : { judge: modelLabel(runJudge) }),
+    // Redacted for every subscriber: a key given as a model id would otherwise head the terminal output.
+    // This config's secrets and the provider keys known now: not the process ledger, which keeps an earlier run's secrets.
+    ...(runAgent?.model === undefined ? {} : { model: staticOutputLedger(config.allSecrets).redact(modelLabel(runAgent.model)) }),
+    ...(runJudge === undefined ? {} : { judge: staticOutputLedger(config.allSecrets).redact(modelLabel(runJudge)) }),
     ...(options.hold?.steps === true ? { stepping: true } : {}),
   });
 
@@ -1604,7 +1613,7 @@ class ReporterAbandoned extends Error {}
 /** `FinishedRun.redact`: the config's fixed secret values; a config that never loaded declared none. */
 function redactStaticSecrets(secrets: ResolvedRunConfig['allSecrets'] | undefined): (text: string) => string {
   if (secrets === undefined) return (text) => String(text);
-  const { redactFragments } = staticSecretLedger(secrets);
+  const { redactFragments } = staticOutputLedger(secrets);
   return (text) => redactFragments(String(text));
 }
 

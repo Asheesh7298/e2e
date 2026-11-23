@@ -1,11 +1,12 @@
 /** Attempt-scoped step timeline. */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { isAgentError } from '../agent/error.ts';
+import { AgentError, isAgentError } from '../agent/error.ts';
 import type { ReplayHandOffReason } from '../agent/executor.ts';
 import type { CacheWrite } from '../cache/context.ts';
 import type { TraceReplayMissReason } from '../cache/decide.ts';
-import type { RecordedModel, DerivedReason } from '../cache/trace.ts';
+import { MAX_TRACE_DESCRIPTOR_CHARS, type RecordedModel, type DerivedReason } from '../cache/trace.ts';
+import { readRecordedModel } from '../cache/trace-fields.ts';
 import { bound } from '../internal/text.ts';
 import { markAbandonedRejection, relocateStack } from '../internal/abandoned.ts';
 import { withAiTraceStep } from '../internal/ai-trace.ts';
@@ -19,6 +20,7 @@ import { APP_LOG_LIMITS } from '../engine/session.ts';
 import type { AppEvent } from '../engine/surface.ts';
 import { compareScreens, type ScreenText, type StepScreen } from './step-screens.ts';
 import { insidePollRead, pollReadSignal } from '../expect/poll-scope.ts';
+import { processSecrets, registerProviderKeys } from './secrecy.ts';
 
 /** The closed step kind set; the type is derived from it, so the two cannot drift. */
 export const STEP_KINDS = ['agent', 'locator', 'assertion', 'screen', 'app', 'session', 'resource'] as const;
@@ -319,12 +321,35 @@ function redactErrorInPlace(thrown: unknown, redact: (text: string) => string): 
     try {
       error.message = redact(error.message);
       if (error.stack !== undefined) error.stack = redact(error.stack);
+      // An agent error keeps its message twice: as `message` and as `explanation`.
+      if (isAgentError(error)) (error as { explanation: string }).explanation = redact(error.explanation);
       redactErrorDetails(error, redact);
     } catch {
       // A frozen error keeps its text; nothing more can be done to it here.
     }
     error = error.cause;
   }
+}
+
+/**
+ * A failed model call, rebuilt as this copy's own agent error with its code,
+ * its `blocked` flag, and its text redacted, and no cause. Whoever catches a
+ * step's error gets this: the cause is the provider SDK's error, whose own
+ * fields (a response body, the request) no redaction reaches, and a provider
+ * may quote the key back in them. An agent error from another installed copy
+ * of core is rebuilt the same way. Every other error is left to the caller.
+ */
+function modelFailure(cause: unknown, redact: (text: string) => string): AgentError | undefined {
+  if (!isAgentError(cause)) return undefined;
+  if (cause.code !== 'MODEL_PROVIDER_FAILED' && cause.code !== 'CONTEXT_OVERFLOW' && cause.code !== 'MODEL_OUTPUT_INVALID') {
+    return undefined;
+  }
+  const error = new AgentError(cause.code, redact(cause.explanation), {
+    blocked: cause.blocked,
+    ...(cause.screenshot === undefined ? {} : { screenshot: cause.screenshot }),
+  });
+  if (cause.stack !== undefined) error.stack = redact(cause.stack);
+  return error;
 }
 
 export interface StepRecorderOptions {
@@ -585,6 +610,8 @@ export class StepRecorder {
       markAbandonedRejection(error);
       return Promise.reject(error);
     }
+    // A hook or test may set a provider key after the session opened.
+    registerProviderKeys(process.env);
     // The label is published, reported, and traced as is: a secret the test
     // spelled into an instruction or a locator stops here, once.
     const label = this.redact?.(rawLabel) ?? rawLabel;
@@ -766,12 +793,15 @@ export class StepRecorder {
       if (options.verifies === true) this.lastVerified = Math.max(this.lastVerified, verifiesBefore);
       return result;
     } catch (thrown) {
+      registerProviderKeys(process.env);
       // A step that failed on its own, or that another abort reached first, keeps that failure.
       const name = this.named.get(record.id);
       const cause = name !== undefined && thrown === name.reason ? name.error : thrown;
+      const failure = modelFailure(cause, this.redact ?? processSecrets.redact);
       if (this.abandoned.has(record.id)) {
-        markAbandonedRejection(cause);
-        throw cause;
+        const rejection = failure ?? cause;
+        markAbandonedRejection(rejection);
+        throw rejection;
       }
       record.durationMs = Date.now() - startedMs;
       const error = classifyError(cause);
@@ -785,8 +815,9 @@ export class StepRecorder {
             : 'failed';
       record.error = serializeError(error, { projectRoot: this.projectRoot, redact: this.redact });
       if (reading?.aborted === true && (error.code === 'CANCELLED' || thrown === reading.reason)) {
-        markAbandonedRejection(this.redactThrown ? error : cause);
+        markAbandonedRejection(failure ?? (this.redactThrown ? error : cause));
       }
+      if (failure !== undefined) throw failure;
       if (!this.redactThrown) throw cause;
       if (this.redact !== undefined) redactErrorInPlace(error, this.redact);
       throw error;
@@ -1031,8 +1062,9 @@ export class StepRecorder {
     const current = this.current();
     if (current === undefined) return;
     if (details.metrics !== undefined) current.metrics = details.metrics;
-    if (details.model !== undefined) current.model = details.model;
-    if (details.cache !== undefined) current.cache = details.cache;
+    // A key given as a model id or an agent's model label is redacted like any other text the report holds.
+    if (details.model !== undefined) current.model = { ...details.model, provider: processSecrets.redact(details.model.provider), model: processSecrets.redact(details.model.model) };
+    if (details.cache !== undefined) current.cache = this.cacheForReport(details.cache);
     if (details.observationRevision !== undefined) {
       current.observationRevision = details.observationRevision;
     }
@@ -1079,10 +1111,21 @@ export class StepRecorder {
         else this.publish(record, progress);
       },
       end: (result) => {
-        Object.assign(record, result);
+        const { cache, ...fields } = result;
+        Object.assign(record, fields);
+        if (cache !== undefined) record.cache = this.cacheForReport(cache);
         this.publishEnd(record);
       },
     };
+  }
+
+  /** The report may know values that an older recording or a guest session did not. */
+  private cacheForReport(cache: StepCacheRecord): StepCacheRecord {
+    if (cache.recordedBy === undefined) return cache;
+    const { recordedBy, ...rest } = cache;
+    const redact = this.redact ?? processSecrets.redact;
+    const model = readRecordedModel({ provider: redact(recordedBy.provider), model: redact(recordedBy.model) }, MAX_TRACE_DESCRIPTOR_CHARS);
+    return model === undefined ? rest : { ...rest, recordedBy: model };
   }
 
   /** The last step of the test's own session, the one an event with no running step belongs to. */

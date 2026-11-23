@@ -70,6 +70,10 @@ import {
   defineTool,
   getToolContext,
   isRuntimeHardStop,
+  redactSecrets,
+  redactStepText,
+  registerProviderKey,
+  registerProviderKeys,
   VERDICT_RULES,
   type ScreenOutput,
 } from '../../src/agent/public.ts';
@@ -1067,6 +1071,19 @@ VERDICT_RULES satisfies string;
 // A runtime hard stop narrows to the AgentError the step rethrows untouched.
 declare const thrown: unknown;
 if (isRuntimeHardStop(thrown)) thrown.code satisfies string;
+// An executor registers a key by name and value, or an environment's, and redacts text it cuts itself.
+registerProviderKey('agent.key', 'value') satisfies void;
+registerProviderKeys({ OPENAI_API_KEY: 'value', UNSET: undefined }) satisfies void;
+registerProviderKeys(process.env) satisfies void;
+redactSecrets('text') satisfies string;
+declare const stepContext: StepExecutorContext;
+redactStepText(stepContext, 'text') satisfies string;
+// @ts-expect-error a key is registered under a name: the marker shows it
+registerProviderKey('value');
+// @ts-expect-error only text is redacted: an object's strings are the caller's to walk
+redactSecrets({ text: 'text' });
+// @ts-expect-error text is redacted for a step: the step's context comes first
+redactStepText('text');
 // A grammar tool's result is a rendered screen: text, or text with its screenshot.
 declare const rendered: ScreenOutput;
 if (typeof rendered !== 'string') rendered.pixels.mediaType satisfies string;
