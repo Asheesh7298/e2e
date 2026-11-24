@@ -150,14 +150,16 @@ export const readSemanticsFunction = <Mode extends SemanticMode>(
     readonly parentElement: (() => Element | null) | undefined;
   }
   const membersByPrototype = new Map<object, DomMembers>();
+  // From `({}).constructor`, since a page can delete or replace `window.Object`.
+  const { getPrototypeOf, getOwnPropertyDescriptor } = ({}).constructor as ObjectConstructor;
   const membersOf = (el: Element): DomMembers | undefined => {
-    const first: object | null = Object.getPrototypeOf(el);
+    const first: object | null = getPrototypeOf(el);
     if (first === null) return undefined;
     const cached = membersByPrototype.get(first);
     if (cached !== undefined) return cached;
     const find = (name: string): PropertyDescriptor | undefined => {
-      for (let proto: object | null = first; proto !== null; proto = Object.getPrototypeOf(proto)) {
-        const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+      for (let proto: object | null = first; proto !== null; proto = getPrototypeOf(proto)) {
+        const descriptor = getOwnPropertyDescriptor(proto, name);
         if (descriptor !== undefined) return descriptor;
       }
       return undefined;

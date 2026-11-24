@@ -36,9 +36,10 @@ export function readsAsSelector(body: ReadsAsSelectorBody): string {
 export const READS_AS_SELECTOR_ENGINE_SOURCE = `() => {
   const read = (${readSemanticsFunction.toString()});
   // From the prototype chain, since a form's field named \`nodeType\` replaces it on the form.
+  const { getPrototypeOf, getOwnPropertyDescriptor } = ({}).constructor;
   const nodeTypeOf = (node) => {
-    for (let proto = Object.getPrototypeOf(node); proto !== null; proto = Object.getPrototypeOf(proto)) {
-      const descriptor = Object.getOwnPropertyDescriptor(proto, 'nodeType');
+    for (let proto = getPrototypeOf(node); proto !== null; proto = getPrototypeOf(proto)) {
+      const descriptor = getOwnPropertyDescriptor(proto, 'nodeType');
       if (descriptor !== undefined && descriptor.get !== undefined) return descriptor.get.call(node);
     }
     return node.nodeType;

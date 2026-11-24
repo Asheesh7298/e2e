@@ -86,10 +86,11 @@ describe('header scope with a shadowing form field', () => {
   it('reads a header in a form whose field is named parentElement without looping', async () => {
     await page.setContent('<form aria-label="Looped"><input name="parentElement"><header data-testid="looped">Site</header></form>');
     const options = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR, mode: { kind: 'ariaRole' as const } };
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const role = await Promise.race([
       page.getByTestId('looped').evaluate(readSemanticsFunction<typeof options.mode>, options),
-      new Promise<string>((resolve) => { setTimeout(() => resolve('timed out'), 3_000); }),
-    ]);
+      new Promise<string>((resolve) => { timer = setTimeout(() => resolve('timed out'), 3_000); }),
+    ]).finally(() => clearTimeout(timer));
     expect(role).toBe('banner');
   });
 });
