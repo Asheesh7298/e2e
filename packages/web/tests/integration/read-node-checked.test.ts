@@ -82,6 +82,33 @@ describe('header scope', () => {
   });
 });
 
+describe('header scope with a shadowing form field', () => {
+  it('reads a header in a form whose field is named parentElement without looping', async () => {
+    await page.setContent('<form aria-label="Looped"><input name="parentElement"><header data-testid="looped">Site</header></form>');
+    const options = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR, mode: { kind: 'ariaRole' as const } };
+    const role = await Promise.race([
+      page.getByTestId('looped').evaluate(readSemanticsFunction<typeof options.mode>, options),
+      new Promise<string>((resolve) => { setTimeout(() => resolve('timed out'), 3_000); }),
+    ]);
+    expect(role).toBe('banner');
+  });
+});
+
+describe('exact region scope', () => {
+  it('keeps a header under an exact role="region" from being the banner', async () => {
+    await page.setContent('<div role="region"><header data-testid="r">Top</header></div><div role="Region"><header data-testid="R">Top</header></div>');
+    const options = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR, mode: { kind: 'ariaRole' as const } };
+    expect(await page.getByTestId('r').evaluate(readSemanticsFunction<typeof options.mode>, options)).not.toBe('banner');
+    expect(await page.getByTestId('R').evaluate(readSemanticsFunction<typeof options.mode>, options)).toBe('banner');
+  });
+  it('folds ARIA tokens in ASCII only, as Chrome does', async () => {
+    await page.setContent('<div role="lin\u212A" data-testid="k">Kelvin</div><div role="LINK" data-testid="l">Upper</div>');
+    const options = { testIdAttribute: 'data-testid', secureFieldSelector: SECURE_FIELD_SELECTOR, mode: { kind: 'ariaRole' as const } };
+    expect(await page.getByTestId('k').evaluate(readSemanticsFunction<typeof options.mode>, options)).not.toBe('link');
+    expect(await page.getByTestId('l').evaluate(readSemanticsFunction<typeof options.mode>, options)).toBe('link');
+  });
+});
+
 describe('checked and selected', () => {
   it('lists closed-select choices but excludes explicitly hidden options and optgroups', async () => {
     await page.setContent(`

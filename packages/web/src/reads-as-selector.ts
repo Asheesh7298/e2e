@@ -1,7 +1,8 @@
 /**
  * The selector engine that keeps a role query's matches to the ones the
  * reader agrees with. Playwright's `getByRole` and the reader, which follows
- * Chrome, can disagree on a landmark's scope and on `aria-disabled` casing;
+ * Chrome, can disagree on a landmark's scope and on a `disabled` state, such as
+ * an element's own `aria-disabled` on a role Playwright skips;
  * appended to the query (`<query> >> e2e-reads-as=<json>`), it makes a locator
  * find what its matchers then read.
  */
@@ -28,13 +29,22 @@ export function readsAsSelector(body: ReadsAsSelectorBody): string {
  * The engine behind `e2e-reads-as=<json>`: each query root is a match of the
  * query before it, kept when the reader agrees, so the query's matches keep
  * their order. Each state is read alone, so a name the reader cannot compute
- * does not cost the answer, an editing host keeps its tag's role, and a read
- * that throws keeps the match.
+ * does not cost the answer, and an editing host keeps its tag's role. A read
+ * that throws keeps the match: a scope, `has`, or `nth` reads nodes the final
+ * `e2e-read` step never reaches, so throwing would fail a query main answers.
  */
 export const READS_AS_SELECTOR_ENGINE_SOURCE = `() => {
   const read = (${readSemanticsFunction.toString()});
+  // From the prototype chain, since a form's field named \`nodeType\` replaces it on the form.
+  const nodeTypeOf = (node) => {
+    for (let proto = Object.getPrototypeOf(node); proto !== null; proto = Object.getPrototypeOf(proto)) {
+      const descriptor = Object.getOwnPropertyDescriptor(proto, 'nodeType');
+      if (descriptor !== undefined && descriptor.get !== undefined) return descriptor.get.call(node);
+    }
+    return node.nodeType;
+  };
   const queryAll = (root, selector) => {
-    if (root.nodeType !== 1) return [];
+    if (nodeTypeOf(root) !== 1) return [];
     const body = JSON.parse(selector);
     const reader = { testIdAttribute: body.testIdAttribute, secureFieldSelector: body.secureFieldSelector };
     const reads = (kind, expected) => {
